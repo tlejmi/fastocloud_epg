@@ -1,3 +1,3 @@
-About IPTV fastocloud balancer
+About IPTV fastocloud epg
 ===============
 ### Features:
