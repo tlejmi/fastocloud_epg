@@ -195,6 +195,18 @@ void ProcessSlaveWrapper::HandleEpgFile(const common::file_system::ascii_file_st
   const std::string path_str = epg_file_path.GetPath();
   INFO_LOG() << "New epg file notification: " << path_str;
 
+  common::time64_t tm;
+  bool is_valid = common::license::GetExpireTimeFromKey(PROJECT_NAME_LOWERCASE, *config_.license_key, &tm);
+  if (!is_valid) {
+    WARNING_LOG() << "Invalid license key";
+    return;
+  }
+
+  if (tm < common::time::current_utc_mstime()) {
+    WARNING_LOG() << "Expired license key";
+    return;
+  }
+
   tinyxml2::XMLDocument doc;
   tinyxml2::XMLError xerr = doc.LoadFile(path_str.c_str());
   if (xerr != tinyxml2::XML_SUCCESS) {
