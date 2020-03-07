@@ -26,9 +26,6 @@ namespace fastocloud {
 namespace server {
 
 // requests
-common::Error ActivateServiceRequest(fastotv::protocol::sequance_id_t id,
-                                     const common::daemon::commands::ActivateInfo& params,
-                                     fastotv::protocol::request_t* req);
 common::Error StopServiceRequest(fastotv::protocol::sequance_id_t id,
                                  const common::daemon::commands::StopInfo& params,
                                  fastotv::protocol::request_t* req);

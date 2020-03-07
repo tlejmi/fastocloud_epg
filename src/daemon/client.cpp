@@ -24,17 +24,6 @@ namespace server {
 ProtocoledDaemonClient::ProtocoledDaemonClient(common::libev::IoLoop* server, const common::net::socket_info& info)
     : base_class(server, info) {}
 
-common::ErrnoError ProtocoledDaemonClient::ActivateMe(const common::license::expire_key_t& license) {
-  const common::daemon::commands::ActivateInfo ac_req(license);
-  fastotv::protocol::request_t req;
-  common::Error err_ser = ActivateServiceRequest(NextRequestID(), ac_req, &req);
-  if (err_ser) {
-    return common::make_errno_error(err_ser->GetDescription(), EAGAIN);
-  }
-
-  return WriteRequest(req);
-}
-
 common::ErrnoError ProtocoledDaemonClient::StopMe() {
   const common::daemon::commands::StopInfo stop_req;
   fastotv::protocol::request_t req;

@@ -19,27 +19,6 @@
 namespace fastocloud {
 namespace server {
 
-common::Error ActivateServiceRequest(fastotv::protocol::sequance_id_t id,
-                                     const common::daemon::commands::ActivateInfo& params,
-                                     fastotv::protocol::request_t* req) {
-  if (!req) {
-    return common::make_error_inval();
-  }
-
-  std::string req_str;
-  common::Error err_ser = params.SerializeToString(&req_str);
-  if (err_ser) {
-    return err_ser;
-  }
-
-  fastotv::protocol::request_t lreq;
-  lreq.id = id;
-  lreq.method = DAEMON_ACTIVATE;
-  lreq.params = req_str;
-  *req = lreq;
-  return common::Error();
-}
-
 common::Error StopServiceRequest(fastotv::protocol::sequance_id_t id,
                                  const common::daemon::commands::StopInfo& params,
                                  fastotv::protocol::request_t* req) {
