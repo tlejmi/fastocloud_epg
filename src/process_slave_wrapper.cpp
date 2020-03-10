@@ -76,7 +76,7 @@ namespace fastocloud {
 namespace server {
 
 ProcessSlaveWrapper::ProcessSlaveWrapper(const Config& config)
-    : config_(config), epg_watched_dir_(nullptr), loop_(nullptr) {
+    : config_(config), epg_watched_dir_(nullptr), loop_(nullptr), check_license_timer_(INVALID_TIMER_ID) {
   loop_ = new DaemonServer(config.host, this);
   loop_->SetName("client_server");
 
@@ -156,6 +156,7 @@ void ProcessSlaveWrapper::HandleChanges(common::libev::inotify::IoInotifyClient*
 void ProcessSlaveWrapper::PreLooped(common::libev::IoLoop* server) {
   UNUSED(server);
   loop_->RegisterClient(epg_watched_dir_);
+  check_license_timer_ = server->CreateTimer(check_license_timeout_seconds, true);
 }
 
 void ProcessSlaveWrapper::Accepted(common::libev::IoClient* client) {
@@ -173,7 +174,9 @@ void ProcessSlaveWrapper::Closed(common::libev::IoClient* client) {
 
 void ProcessSlaveWrapper::TimerEmited(common::libev::IoLoop* server, common::libev::timer_id_t id) {
   UNUSED(server);
-  UNUSED(id);
+  if (check_license_timer_ == id) {
+    CheckLicenseExpired();
+  }
 }
 
 void ProcessSlaveWrapper::Accepted(common::libev::IoChild* child) {
@@ -194,18 +197,6 @@ void ProcessSlaveWrapper::ChildStatusChanged(common::libev::IoChild* child, int 
 void ProcessSlaveWrapper::HandleEpgFile(const common::file_system::ascii_file_string_path& epg_file_path) {
   const std::string path_str = epg_file_path.GetPath();
   INFO_LOG() << "New epg file notification: " << path_str;
-
-  common::time64_t tm;
-  bool is_valid = common::license::GetExpireTimeFromKey(PROJECT_NAME_LOWERCASE, *config_.license_key, &tm);
-  if (!is_valid) {
-    WARNING_LOG() << "Invalid license key";
-    return;
-  }
-
-  if (tm < common::time::current_utc_mstime()) {
-    WARNING_LOG() << "Expired license key";
-    return;
-  }
 
   tinyxml2::XMLDocument doc;
   tinyxml2::XMLError xerr = doc.LoadFile(path_str.c_str());
@@ -253,6 +244,10 @@ void ProcessSlaveWrapper::HandleEpgFile(const common::file_system::ascii_file_st
     delete it->second;
   }
   INFO_LOG() << "Epg file processing finished, programms count: " << all_programms.size();
+}
+
+void ProcessSlaveWrapper::StopImpl() {
+  loop_->Stop();
 }
 
 void ProcessSlaveWrapper::BroadcastClients(const fastotv::protocol::request_t& req) {
@@ -330,6 +325,11 @@ void ProcessSlaveWrapper::DataReadyToWrite(common::libev::IoClient* client) {
 
 void ProcessSlaveWrapper::PostLooped(common::libev::IoLoop* server) {
   UNUSED(server);
+
+  if (check_license_timer_ != INVALID_TIMER_ID) {
+    server->RemoveTimer(check_license_timer_);
+    check_license_timer_ = INVALID_TIMER_ID;
+  }
 }
 
 common::ErrnoError ProcessSlaveWrapper::HandleRequestClientStopService(ProtocoledDaemonClient* dclient,
@@ -358,7 +358,7 @@ common::ErrnoError ProcessSlaveWrapper::HandleRequestClientStopService(Protocole
       return common::make_errno_error(err_str, EAGAIN);
     }
 
-    loop_->Stop();
+    StopImpl();
     return dclient->StopSuccess(req->id);
   }
 
@@ -486,6 +486,29 @@ common::ErrnoError ProcessSlaveWrapper::HandleResponceServiceCommand(ProtocoledD
   }
 
   return common::ErrnoError();
+}
+
+void ProcessSlaveWrapper::CheckLicenseExpired() {
+  const auto license = config_.license_key;
+  if (!license) {
+    WARNING_LOG() << "You have an invalid license, service stopped";
+    StopImpl();
+    return;
+  }
+
+  common::time64_t tm;
+  bool is_valid = common::license::GetExpireTimeFromKey(PROJECT_NAME_LOWERCASE, *license, &tm);
+  if (!is_valid) {
+    WARNING_LOG() << "You have an invalid license, service stopped";
+    StopImpl();
+    return;
+  }
+
+  if (tm < common::time::current_utc_mstime()) {
+    WARNING_LOG() << "Your license have expired, service stopped";
+    StopImpl();
+    return;
+  }
 }
 
 }  // namespace server

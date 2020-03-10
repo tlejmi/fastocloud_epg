@@ -32,6 +32,8 @@ class ProtocoledDaemonClient;
 class ProcessSlaveWrapper : public common::libev::IoLoopObserver,
                             public common::libev::inotify::IoInotifyClientObserver {
  public:
+  enum { node_stats_send_seconds = 10, ping_timeout_clients_seconds = 60, check_license_timeout_seconds = 300 };
+
   explicit ProcessSlaveWrapper(const Config& config);
   ~ProcessSlaveWrapper() override;
 
@@ -68,6 +70,8 @@ class ProcessSlaveWrapper : public common::libev::IoLoopObserver,
                                                           const fastotv::protocol::response_t* resp) WARN_UNUSED_RESULT;
 
  private:
+  void StopImpl();
+
   void BroadcastClients(const fastotv::protocol::request_t& req);
   void HandleEpgFile(const common::file_system::ascii_file_string_path& epg_file_path);
 
@@ -84,10 +88,14 @@ class ProcessSlaveWrapper : public common::libev::IoLoopObserver,
   common::ErrnoError HandleResponcePingService(ProtocoledDaemonClient* dclient,
                                                const fastotv::protocol::response_t* resp) WARN_UNUSED_RESULT;
 
+  void CheckLicenseExpired();
+
   const Config config_;
 
   common::libev::inotify::IoInotifyClient* epg_watched_dir_;
   common::libev::IoLoop* loop_;
+
+  common::libev::timer_id_t check_license_timer_;
 };
 
 }  // namespace server
