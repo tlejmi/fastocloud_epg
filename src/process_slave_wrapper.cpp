@@ -86,27 +86,27 @@ ProcessSlaveWrapper::ProcessSlaveWrapper(const Config& config)
                                    common::libev::inotify::EV_IN_CREATE | common::libev::inotify::EV_IN_CLOSE_WRITE);
 }
 
-int ProcessSlaveWrapper::SendStopDaemonRequest(const Config& config) {
+common::ErrnoError ProcessSlaveWrapper::SendStopDaemonRequest(const Config& config) {
   if (!config.IsValid()) {
-    return EXIT_FAILURE;
+    return common::make_errno_error_inval();
   }
 
   const common::net::HostAndPort host = config.host;
   common::net::socket_info client_info;
   common::ErrnoError err = common::net::connect(host, common::net::ST_SOCK_STREAM, nullptr, &client_info);
   if (err) {
-    return EXIT_FAILURE;
+    return err;
   }
 
   std::unique_ptr<ProtocoledDaemonClient> connection(new ProtocoledDaemonClient(nullptr, client_info));
   err = connection->StopMe();
   if (err) {
     ignore_result(connection->Close());
-    return EXIT_FAILURE;
+    return err;
   }
 
   ignore_result(connection->Close());
-  return EXIT_SUCCESS;
+  return common::ErrnoError();
 }
 
 ProcessSlaveWrapper::~ProcessSlaveWrapper() {
@@ -338,6 +338,7 @@ common::ErrnoError ProcessSlaveWrapper::HandleRequestClientStopService(Protocole
   if (!dclient->IsVerified()) {
     const auto info = dclient->GetInfo();
     common::net::HostAndPort host(info.host(), info.port());
+    INFO_LOG() << "Stop request from host: " << common::ConvertToString(host);
     if (!host.IsLocalHost()) {
       return common::make_errno_error_inval();
     }

@@ -77,7 +77,12 @@ int main(int argc, char** argv, char** envp) {
         return EXIT_FAILURE;
       }
 
-      return fastocloud::server::ProcessSlaveWrapper::SendStopDaemonRequest(config);
+      err = fastocloud::server::ProcessSlaveWrapper::SendStopDaemonRequest(config);
+      if (err) {
+        std::cerr << "Stop command failed error: " << err->GetDescription() << std::endl;
+        return EXIT_FAILURE;
+      }
+      return EXIT_SUCCESS;
     } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
       std::cout << HELP_TEXT << std::endl;
       return EXIT_SUCCESS;
