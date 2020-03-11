@@ -91,7 +91,11 @@ common::ErrnoError ProcessSlaveWrapper::SendStopDaemonRequest(const Config& conf
     return common::make_errno_error_inval();
   }
 
-  const common::net::HostAndPort host = config.host;
+  common::net::HostAndPort host = config.host;
+  if (host.GetHost() == PROJECT_NAME_LOWERCASE) {  // docker image
+    host = common::net::HostAndPort::CreateLocalHost(host.GetPort());
+  }
+
   common::net::socket_info client_info;
   common::ErrnoError err = common::net::connect(host, common::net::ST_SOCK_STREAM, nullptr, &client_info);
   if (err) {
