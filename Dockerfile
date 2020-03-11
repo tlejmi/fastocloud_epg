@@ -22,6 +22,7 @@ RUN set -ex; \
   cd $PROJECT_DIR/build && PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/usr/local/lib/pkgconfig python3 build.py release $PREFIX; \
 rm -rf $PYFASTOGT_DIR $PROJECT_DIR # && apt-get purge -y --auto-remove $BUILD_DEPS
 
+COPY docker/fastocloud_epg.conf /etc/
 RUN mkdir /var/run/$APP_NAME && chown $USER:$USER /var/run/$APP_NAME
 VOLUME /var/run/$APP_NAME
 WORKDIR /var/run/$APP_NAME
