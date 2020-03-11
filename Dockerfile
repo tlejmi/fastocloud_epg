@@ -10,7 +10,7 @@ RUN groupadd -r $USER && useradd -r -g $USER $USER
 COPY . $PROJECT_DIR
 
 RUN set -ex; \
-  BUILD_DEPS='ca-certificates git python3 python3-pip'; \
+  BUILD_DEPS='ca-certificates git python3 python3-pip nano'; \
   PREFIX=/usr/local; \
   apt-get update; \
   apt-get install -y $BUILD_DEPS --no-install-recommends; \
