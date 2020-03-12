@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import argparse
 import subprocess
+import contextlib
+import os
 from abc import ABCMeta, abstractmethod
 import sys
 
@@ -129,6 +131,13 @@ class BuildRequest(build_utils.BuildRequest):
 
         return dep_libs
 
+    def prepare_docker(self):
+        with contextlib.suppress(FileNotFoundError):
+            os.remove('/var/lib/dbus/machine-id')
+        with contextlib.suppress(FileNotFoundError):
+            os.remove('/etc/machine-id')
+        subprocess.call(['dbus-uuidgen', '--ensure'])
+
     def install_system(self):
         dep_libs = self.get_system_libs()
         for lib in dep_libs:
@@ -229,11 +238,14 @@ if __name__ == "__main__":
 
     arg_platform = argv.platform
     arg_prefix_path = argv.prefix
+    argv_docker = argv.docker
     arg_architecture = argv.architecture
     arg_install_other_packages = argv.install_other_packages
     arg_install_fastogt_packages = argv.install_fastogt_packages
 
     request = BuildRequest(arg_platform, arg_architecture, 'build_' + arg_platform + '_env', arg_prefix_path)
+    if argv_docker:
+        request.prepare_docker()
     if argv.with_system and arg_install_other_packages:
         request.install_system()
 

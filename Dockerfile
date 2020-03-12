@@ -18,7 +18,7 @@ RUN set -ex; \
   pip3 install setuptools; \
   PYFASTOGT_DIR=/usr/src/pyfastogt; \
   mkdir -p $PYFASTOGT_DIR && git clone https://github.com/fastogt/pyfastogt $PYFASTOGT_DIR && cd $PYFASTOGT_DIR && python3 setup.py install; \
-  cd $PROJECT_DIR/build && ./build_env.py --prefix=$PREFIX; \
+  cd $PROJECT_DIR/build && ./build_env.py --prefix=$PREFIX --docker; \
   cd $PROJECT_DIR/build && PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/usr/local/lib/pkgconfig python3 build.py release $PREFIX; \
 rm -rf $PYFASTOGT_DIR $PROJECT_DIR # && apt-get purge -y --auto-remove $BUILD_DEPS
 
