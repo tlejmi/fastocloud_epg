@@ -226,6 +226,8 @@ if __name__ == "__main__":
     parser.add_argument('--architecture', help='architecture (default: {0})'.format(arch_host_os),
                         default=arch_host_os)
     parser.add_argument('--prefix', help='prefix path (default: None)', default=None)
+    parser.add_argument('--docker', help='docker build (default: False)', dest='docker', action='store_true',
+                        default=False)
 
     parser.add_argument('--install-other-packages',
                         help='install other packages (--with-system, --with-tools --with-meson --with-jsonc --with-libev) (default: True)',
