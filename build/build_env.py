@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 import argparse
 import subprocess
-import contextlib
-import os
 from abc import ABCMeta, abstractmethod
 import sys
 
-from pyfastogt import system_info, build_utils
+from pyfastogt import system_info, build_utils, utils
 
 TINYXML2_URL = 'https://github.com/leethomason/tinyxml2'
 
@@ -132,11 +130,7 @@ class BuildRequest(build_utils.BuildRequest):
         return dep_libs
 
     def prepare_docker(self):
-        with contextlib.suppress(FileNotFoundError):
-            os.remove('/var/lib/dbus/machine-id')
-        with contextlib.suppress(FileNotFoundError):
-            os.remove('/etc/machine-id')
-        subprocess.call(['dbus-uuidgen', '--ensure'])
+        utils.regenerate_dbus_machine_id()
 
     def install_system(self):
         dep_libs = self.get_system_libs()
