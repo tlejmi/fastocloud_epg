@@ -1,6 +1,6 @@
 server {
-        listen 8083 default_server;
-        listen [::]:8083 default_server;
+        listen 8084 default_server;
+        listen [::]:8084 default_server;
 
         # SSL configuration
         #
