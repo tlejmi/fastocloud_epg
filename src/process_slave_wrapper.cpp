@@ -25,10 +25,19 @@
 #include <common/daemon/commands/stop_info.h>
 #include <common/libev/inotify/inotify_client.h>
 #include <common/license/expire_license.h>
+#include <common/net/http_client.h>
 #include <common/net/net.h>
+
+#include <fastotv/types.h>
 
 #include "daemon/client.h"
 #include "daemon/commands.h"
+#include "daemon/commands_info/details/shots.h"
+#include "daemon/commands_info/get_log_info.h"
+#include "daemon/commands_info/prepare_info.h"
+#include "daemon/commands_info/server_info.h"
+#include "daemon/commands_info/state_info.h"
+#include "daemon/commands_info/sync_info.h"
 #include "daemon/server.h"
 
 #define PROGRAMME_TAG "programme"
@@ -75,8 +84,22 @@ bool FindOrCreateFileStream(const std::map<std::string, std::ofstream*>& origin,
 namespace fastocloud {
 namespace server {
 
+struct ProcessSlaveWrapper::NodeStats {
+  NodeStats() : prev(), prev_nshot(), timestamp(common::time::current_utc_mstime()) {}
+
+  service::CpuShot prev;
+  service::NetShot prev_nshot;
+  fastotv::timestamp_t timestamp;
+};
+
 ProcessSlaveWrapper::ProcessSlaveWrapper(const Config& config)
-    : config_(config), epg_watched_dir_(nullptr), loop_(nullptr), check_license_timer_(INVALID_TIMER_ID) {
+    : config_(config),
+      epg_watched_dir_(nullptr),
+      loop_(nullptr),
+      ping_client_timer_(INVALID_TIMER_ID),
+      node_stats_timer_(INVALID_TIMER_ID),
+      check_license_timer_(INVALID_TIMER_ID),
+      node_stats_(new NodeStats) {
   loop_ = new DaemonServer(config.host, this);
   loop_->SetName("client_server");
 
@@ -115,6 +138,7 @@ common::ErrnoError ProcessSlaveWrapper::SendStopDaemonRequest(const Config& conf
 
 ProcessSlaveWrapper::~ProcessSlaveWrapper() {
   destroy(&loop_);
+  destroy(&node_stats_);
 }
 
 int ProcessSlaveWrapper::Exec() {
@@ -160,6 +184,8 @@ void ProcessSlaveWrapper::HandleChanges(common::libev::inotify::IoInotifyClient*
 void ProcessSlaveWrapper::PreLooped(common::libev::IoLoop* server) {
   UNUSED(server);
   loop_->RegisterClient(epg_watched_dir_);
+  ping_client_timer_ = server->CreateTimer(ping_timeout_clients_seconds, true);
+  node_stats_timer_ = server->CreateTimer(node_stats_send_seconds, true);
   check_license_timer_ = server->CreateTimer(check_license_timeout_seconds, true);
 }
 
@@ -177,8 +203,33 @@ void ProcessSlaveWrapper::Closed(common::libev::IoClient* client) {
 }
 
 void ProcessSlaveWrapper::TimerEmited(common::libev::IoLoop* server, common::libev::timer_id_t id) {
-  UNUSED(server);
-  if (check_license_timer_ == id) {
+  if (ping_client_timer_ == id) {
+    std::vector<common::libev::IoClient*> online_clients = server->GetClients();
+    for (size_t i = 0; i < online_clients.size(); ++i) {
+      common::libev::IoClient* client = online_clients[i];
+      ProtocoledDaemonClient* dclient = dynamic_cast<ProtocoledDaemonClient*>(client);
+      if (dclient && dclient->IsVerified()) {
+        common::ErrnoError err = dclient->Ping();
+        if (err) {
+          DEBUG_MSG_ERROR(err, common::logging::LOG_LEVEL_ERR);
+          ignore_result(dclient->Close());
+          delete dclient;
+        } else {
+          INFO_LOG() << "Sent ping to client[" << client->GetFormatedName() << "], from server["
+                     << server->GetFormatedName() << "], " << online_clients.size() << " client(s) connected.";
+        }
+      }
+    }
+  } else if (node_stats_timer_ == id) {
+    const std::string node_stats = MakeServiceStats(0);
+    fastotv::protocol::request_t req;
+    common::Error err_ser = StatisitcServiceBroadcast(node_stats, &req);
+    if (err_ser) {
+      return;
+    }
+
+    BroadcastClients(req);
+  } else if (check_license_timer_ == id) {
     CheckLicenseExpired();
   }
 }
@@ -330,10 +381,20 @@ void ProcessSlaveWrapper::DataReadyToWrite(common::libev::IoClient* client) {
 void ProcessSlaveWrapper::PostLooped(common::libev::IoLoop* server) {
   UNUSED(server);
 
+  if (ping_client_timer_ != INVALID_TIMER_ID) {
+    server->RemoveTimer(ping_client_timer_);
+    ping_client_timer_ = INVALID_TIMER_ID;
+  }
+  if (node_stats_timer_ != INVALID_TIMER_ID) {
+    server->RemoveTimer(node_stats_timer_);
+    node_stats_timer_ = INVALID_TIMER_ID;
+  }
   if (check_license_timer_ != INVALID_TIMER_ID) {
     server->RemoveTimer(check_license_timer_);
     check_license_timer_ = INVALID_TIMER_ID;
   }
+
+  loop_->UnRegisterClient(epg_watched_dir_);
 }
 
 common::ErrnoError ProcessSlaveWrapper::HandleRequestClientStopService(ProtocoledDaemonClient* dclient,
@@ -370,6 +431,96 @@ common::ErrnoError ProcessSlaveWrapper::HandleRequestClientStopService(Protocole
   return common::make_errno_error_inval();
 }
 
+common::ErrnoError ProcessSlaveWrapper::HandleRequestClientPrepareService(ProtocoledDaemonClient* dclient,
+                                                                          const fastotv::protocol::request_t* req) {
+  CHECK(loop_->IsLoopThread());
+  if (!dclient->IsVerified()) {
+    return common::make_errno_error_inval();
+  }
+
+  if (req->params) {
+    const char* params_ptr = req->params->c_str();
+    json_object* jservice_state = json_tokener_parse(params_ptr);
+    if (!jservice_state) {
+      return common::make_errno_error_inval();
+    }
+
+    service::PrepareInfo state_info;
+    common::Error err_des = state_info.DeSerialize(jservice_state);
+    json_object_put(jservice_state);
+    if (err_des) {
+      const std::string err_str = err_des->GetDescription();
+      return common::make_errno_error(err_str, EAGAIN);
+    }
+
+    service::StateInfo state;
+    return dclient->PrepareServiceSuccess(req->id, state);
+  }
+
+  return common::make_errno_error_inval();
+}
+
+common::ErrnoError ProcessSlaveWrapper::HandleRequestClientSyncService(ProtocoledDaemonClient* dclient,
+                                                                       const fastotv::protocol::request_t* req) {
+  CHECK(loop_->IsLoopThread());
+  if (!dclient->IsVerified()) {
+    return common::make_errno_error_inval();
+  }
+
+  if (req->params) {
+    const char* params_ptr = req->params->c_str();
+    json_object* jservice_state = json_tokener_parse(params_ptr);
+    if (!jservice_state) {
+      return common::make_errno_error_inval();
+    }
+
+    service::SyncInfo sync_info;
+    common::Error err_des = sync_info.DeSerialize(jservice_state);
+    json_object_put(jservice_state);
+    if (err_des) {
+      const std::string err_str = err_des->GetDescription();
+      return common::make_errno_error(err_str, EAGAIN);
+    }
+
+    return dclient->SyncServiceSuccess(req->id);
+  }
+
+  return common::make_errno_error_inval();
+}
+
+common::ErrnoError ProcessSlaveWrapper::HandleRequestClientGetLogService(ProtocoledDaemonClient* dclient,
+                                                                         const fastotv::protocol::request_t* req) {
+  CHECK(loop_->IsLoopThread());
+  if (!dclient->IsVerified()) {
+    return common::make_errno_error_inval();
+  }
+
+  if (req->params) {
+    const char* params_ptr = req->params->c_str();
+    json_object* jlog = json_tokener_parse(params_ptr);
+    if (!jlog) {
+      return common::make_errno_error_inval();
+    }
+
+    service::GetLogInfo get_log_info;
+    common::Error err_des = get_log_info.DeSerialize(jlog);
+    json_object_put(jlog);
+    if (err_des) {
+      const std::string err_str = err_des->GetDescription();
+      return common::make_errno_error(err_str, EAGAIN);
+    }
+
+    const auto remote_log_path = get_log_info.GetLogPath();
+    if (remote_log_path.SchemeIsHTTPOrHTTPS()) {
+      common::net::PostHttpFile(common::file_system::ascii_file_string_path(config_.log_path), remote_log_path);
+    }
+
+    return dclient->GetLogServiceSuccess(req->id);
+  }
+
+  return common::make_errno_error_inval();
+}
+
 common::ErrnoError ProcessSlaveWrapper::HandleRequestClientActivate(ProtocoledDaemonClient* dclient,
                                                                     const fastotv::protocol::request_t* req) {
   CHECK(loop_->IsLoopThread());
@@ -397,7 +548,8 @@ common::ErrnoError ProcessSlaveWrapper::HandleRequestClientActivate(ProtocoledDa
       return common::make_errno_error(err->GetDescription(), EINVAL);
     }
 
-    common::ErrnoError err_ser = dclient->ActivateSuccess(req->id);
+    const std::string node_stats = MakeServiceStats(tm);
+    common::ErrnoError err_ser = dclient->ActivateSuccess(req->id, node_stats);
     if (err_ser) {
       return err_ser;
     }
@@ -468,6 +620,12 @@ common::ErrnoError ProcessSlaveWrapper::HandleRequestServiceCommand(ProtocoledDa
     return HandleRequestClientPingService(dclient, req);
   } else if (req->method == DAEMON_ACTIVATE) {
     return HandleRequestClientActivate(dclient, req);
+  } else if (req->method == DAEMON_PREPARE_SERVICE) {
+    return HandleRequestClientPrepareService(dclient, req);
+  } else if (req->method == DAEMON_SYNC_SERVICE) {
+    return HandleRequestClientSyncService(dclient, req);
+  } else if (req->method == DAEMON_GET_LOG_SERVICE) {
+    return HandleRequestClientGetLogService(dclient, req);
   }
 
   WARNING_LOG() << "Received unknown method: " << req->method;
@@ -514,6 +672,57 @@ void ProcessSlaveWrapper::CheckLicenseExpired() {
     StopImpl();
     return;
   }
+}
+
+std::string ProcessSlaveWrapper::MakeServiceStats(common::time64_t expiration_time) const {
+  service::CpuShot next = service::GetMachineCpuShot();
+  double cpu_load = service::GetCpuMachineLoad(node_stats_->prev, next);
+  node_stats_->prev = next;
+
+  service::NetShot next_nshot = service::GetMachineNetShot();
+  uint64_t bytes_recv = (next_nshot.bytes_recv - node_stats_->prev_nshot.bytes_recv);
+  uint64_t bytes_send = (next_nshot.bytes_send - node_stats_->prev_nshot.bytes_send);
+  node_stats_->prev_nshot = next_nshot;
+
+  service::MemoryShot mem_shot = service::GetMachineMemoryShot();
+  service::HddShot hdd_shot = service::GetMachineHddShot();
+  service::SysinfoShot sshot = service::GetMachineSysinfoShot();
+  std::string uptime_str = common::MemSPrintf("%lu %lu %lu", sshot.loads[0], sshot.loads[1], sshot.loads[2]);
+  fastotv::timestamp_t current_time = common::time::current_utc_mstime();
+  fastotv::timestamp_t ts_diff = (current_time - node_stats_->timestamp) / 1000;
+  if (ts_diff == 0) {
+    ts_diff = 1;  // divide by zero
+  }
+  node_stats_->timestamp = current_time;
+
+  size_t daemons_client_count = 0;
+  std::vector<common::libev::IoClient*> clients = loop_->GetClients();
+  for (size_t i = 0; i < clients.size(); ++i) {
+    ProtocoledDaemonClient* dclient = dynamic_cast<ProtocoledDaemonClient*>(clients[i]);
+    if (dclient && dclient->IsVerified()) {
+      daemons_client_count++;
+    }
+  }
+  service::OnlineUsers online(daemons_client_count);
+  service::ServerInfo stat(cpu_load, uptime_str, mem_shot, hdd_shot, bytes_recv / ts_diff, bytes_send / ts_diff, sshot,
+                           current_time, online);
+
+  std::string node_stats;
+  if (expiration_time != 0) {
+    service::FullServiceInfo fstat(expiration_time, stat);
+    common::Error err_ser = fstat.SerializeToString(&node_stats);
+    if (err_ser) {
+      const std::string err_str = err_ser->GetDescription();
+      WARNING_LOG() << "Failed to generate node full statistic: " << err_str;
+    }
+  } else {
+    common::Error err_ser = stat.SerializeToString(&node_stats);
+    if (err_ser) {
+      const std::string err_str = err_ser->GetDescription();
+      WARNING_LOG() << "Failed to generate node statistic: " << err_str;
+    }
+  }
+  return node_stats;
 }
 
 }  // namespace server

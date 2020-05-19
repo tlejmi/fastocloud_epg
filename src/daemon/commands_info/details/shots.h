@@ -16,28 +16,56 @@
 
 #include <string>
 
-#include <fastotv/protocol/types.h>
-
-// daemon
-// client commands
-
-#define DAEMON_ACTIVATE "activate_request"  // {"key": "XXXXXXXXXXXXXXXXXX"}
-#define DAEMON_STOP_SERVICE "stop_service"  // {"delay": 0 }
-#define DAEMON_PING_SERVICE "ping_service"
-#define DAEMON_PREPARE_SERVICE "prepare_service"
-#define DAEMON_SYNC_SERVICE "sync_service"
-#define DAEMON_GET_LOG_SERVICE "get_log_service"
-
-#define DAEMON_SERVER_PING "ping_client"
-
-// Broadcast
-#define STREAM_STATISTIC_SERVICE "statistic_service"
+#include <common/error.h>
 
 namespace fastocloud {
 namespace server {
+namespace service {
 
-common::Error StatisitcServiceBroadcast(fastotv::protocol::serializet_params_t params,
-                                        fastotv::protocol::request_t* req);
+struct CpuShot {
+  uint64_t cpu_usage;
+  uint64_t cpu_limit;
+};
 
+long double GetCpuMachineLoad(const CpuShot& prev, const CpuShot& next);
+CpuShot GetMachineCpuShot();
+
+struct MemoryShot {
+  MemoryShot();
+
+  size_t ram_bytes_total;
+  size_t ram_bytes_free;
+};
+
+MemoryShot GetMachineMemoryShot();
+
+struct HddShot {
+  HddShot();
+
+  size_t hdd_bytes_total;
+  size_t hdd_bytes_free;
+};
+
+HddShot GetMachineHddShot();
+
+struct NetShot {
+  NetShot();
+
+  size_t bytes_recv;
+  size_t bytes_send;
+};
+
+NetShot GetMachineNetShot();
+
+struct SysinfoShot {
+  SysinfoShot();
+
+  unsigned long loads[3];
+  time_t uptime;
+};
+
+SysinfoShot GetMachineSysinfoShot();
+
+}  // namespace service
 }  // namespace server
 }  // namespace fastocloud

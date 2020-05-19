@@ -70,6 +70,12 @@ SET(SERVER_DAEMON_HEADERS
   ${CMAKE_SOURCE_DIR}/src/daemon/server.h
   ${CMAKE_SOURCE_DIR}/src/daemon/commands.h
   ${CMAKE_SOURCE_DIR}/src/daemon/commands_factory.h
+  ${CMAKE_SOURCE_DIR}/src/daemon/commands_info/prepare_info.h
+  ${CMAKE_SOURCE_DIR}/src/daemon/commands_info/state_info.h
+  ${CMAKE_SOURCE_DIR}/src/daemon/commands_info/sync_info.h
+  ${CMAKE_SOURCE_DIR}/src/daemon/commands_info/get_log_info.h
+  ${CMAKE_SOURCE_DIR}/src/daemon/commands_info/details/shots.h
+  ${CMAKE_SOURCE_DIR}/src/daemon/commands_info/server_info.h
 )
 
 SET(SERVER_DAEMON_SOURCES
@@ -77,6 +83,12 @@ SET(SERVER_DAEMON_SOURCES
   ${CMAKE_SOURCE_DIR}/src/daemon/server.cpp
   ${CMAKE_SOURCE_DIR}/src/daemon/commands.cpp
   ${CMAKE_SOURCE_DIR}/src/daemon/commands_factory.cpp
+  ${CMAKE_SOURCE_DIR}/src/daemon/commands_info/prepare_info.cpp
+  ${CMAKE_SOURCE_DIR}/src/daemon/commands_info/state_info.cpp
+  ${CMAKE_SOURCE_DIR}/src/daemon/commands_info/sync_info.cpp
+  ${CMAKE_SOURCE_DIR}/src/daemon/commands_info/get_log_info.cpp
+  ${CMAKE_SOURCE_DIR}/src/daemon/commands_info/details/shots.cpp
+  ${CMAKE_SOURCE_DIR}/src/daemon/commands_info/server_info.cpp
 )
 
 SET(SERVER_HEADERS

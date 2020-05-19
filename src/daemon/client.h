@@ -23,6 +23,8 @@
 #include <fastotv/protocol/protocol.h>
 #include <fastotv/protocol/types.h>
 
+#include "daemon/commands_info/state_info.h"
+
 namespace fastocloud {
 namespace server {
 
@@ -44,7 +46,12 @@ class ProtocoledDaemonClient : public fastotv::protocol::ProtocolClient<common::
                           const common::daemon::commands::ServerPingInfo& pong) WARN_UNUSED_RESULT;
 
   common::ErrnoError ActivateFail(fastotv::protocol::sequance_id_t id, common::Error err) WARN_UNUSED_RESULT;
-  common::ErrnoError ActivateSuccess(fastotv::protocol::sequance_id_t id) WARN_UNUSED_RESULT;
+  common::ErrnoError ActivateSuccess(fastotv::protocol::sequance_id_t id, const std::string& result) WARN_UNUSED_RESULT;
+
+  common::ErrnoError PrepareServiceSuccess(fastotv::protocol::sequance_id_t id,
+                                           const service::StateInfo& state) WARN_UNUSED_RESULT;
+  common::ErrnoError SyncServiceSuccess(fastotv::protocol::sequance_id_t id) WARN_UNUSED_RESULT;
+  common::ErrnoError GetLogServiceSuccess(fastotv::protocol::sequance_id_t id) WARN_UNUSED_RESULT;
 };
 
 }  // namespace server

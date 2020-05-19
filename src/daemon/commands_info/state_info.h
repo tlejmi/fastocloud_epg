@@ -15,29 +15,25 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
-#include <fastotv/protocol/types.h>
-
-// daemon
-// client commands
-
-#define DAEMON_ACTIVATE "activate_request"  // {"key": "XXXXXXXXXXXXXXXXXX"}
-#define DAEMON_STOP_SERVICE "stop_service"  // {"delay": 0 }
-#define DAEMON_PING_SERVICE "ping_service"
-#define DAEMON_PREPARE_SERVICE "prepare_service"
-#define DAEMON_SYNC_SERVICE "sync_service"
-#define DAEMON_GET_LOG_SERVICE "get_log_service"
-
-#define DAEMON_SERVER_PING "ping_client"
-
-// Broadcast
-#define STREAM_STATISTIC_SERVICE "statistic_service"
+#include <common/serializer/json_serializer.h>
 
 namespace fastocloud {
 namespace server {
+namespace service {
 
-common::Error StatisitcServiceBroadcast(fastotv::protocol::serializet_params_t params,
-                                        fastotv::protocol::request_t* req);
+class StateInfo : public common::serializer::JsonSerializer<StateInfo> {
+ public:
+  typedef JsonSerializer<StateInfo> base_class;
 
+  StateInfo();
+
+ protected:
+  common::Error DoDeSerialize(json_object* serialized) override;
+  common::Error SerializeFields(json_object* deserialized) const override;
+};
+
+}  // namespace service
 }  // namespace server
 }  // namespace fastocloud

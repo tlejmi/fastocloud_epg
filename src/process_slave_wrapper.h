@@ -84,18 +84,29 @@ class ProcessSlaveWrapper : public common::libev::IoLoopObserver,
                                                     const fastotv::protocol::request_t* req) WARN_UNUSED_RESULT;
   common::ErrnoError HandleRequestClientStopService(ProtocoledDaemonClient* dclient,
                                                     const fastotv::protocol::request_t* req) WARN_UNUSED_RESULT;
-
+  common::ErrnoError HandleRequestClientPrepareService(ProtocoledDaemonClient* dclient,
+                                                       const fastotv::protocol::request_t* req);
+  common::ErrnoError HandleRequestClientSyncService(ProtocoledDaemonClient* dclient,
+                                                    const fastotv::protocol::request_t* req) WARN_UNUSED_RESULT;
+  common::ErrnoError HandleRequestClientGetLogService(ProtocoledDaemonClient* dclient,
+                                                      const fastotv::protocol::request_t* req) WARN_UNUSED_RESULT;
   common::ErrnoError HandleResponcePingService(ProtocoledDaemonClient* dclient,
                                                const fastotv::protocol::response_t* resp) WARN_UNUSED_RESULT;
 
   void CheckLicenseExpired();
+  std::string MakeServiceStats(common::time64_t expiration_time) const;
 
   const Config config_;
 
   common::libev::inotify::IoInotifyClient* epg_watched_dir_;
   common::libev::IoLoop* loop_;
 
+  common::libev::timer_id_t ping_client_timer_;
+  common::libev::timer_id_t node_stats_timer_;
   common::libev::timer_id_t check_license_timer_;
+
+  struct NodeStats;
+  NodeStats* node_stats_;
 };
 
 }  // namespace server

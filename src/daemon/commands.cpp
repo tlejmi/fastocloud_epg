@@ -15,5 +15,15 @@
 #include "daemon/commands.h"
 
 namespace fastocloud {
-namespace server {}  // namespace server
+namespace server {
+common::Error StatisitcServiceBroadcast(fastotv::protocol::serializet_params_t params,
+                                        fastotv::protocol::request_t* req) {
+  if (!req) {
+    return common::make_error_inval();
+  }
+
+  *req = fastotv::protocol::request_t::MakeNotification(STREAM_STATISTIC_SERVICE, params);
+  return common::Error();
+}
+}  // namespace server
 }  // namespace fastocloud

@@ -22,6 +22,8 @@
 
 #include <fastotv/protocol/types.h>
 
+#include "daemon/commands_info/state_info.h"
+
 namespace fastocloud {
 namespace server {
 
@@ -46,10 +48,18 @@ common::Error PingServiceResponceFail(fastotv::protocol::sequance_id_t id,
                                       const std::string& error_text,
                                       fastotv::protocol::response_t* resp);
 
-common::Error ActivateResponse(fastotv::protocol::sequance_id_t id, fastotv::protocol::response_t* resp);
+common::Error ActivateResponse(fastotv::protocol::sequance_id_t id,
+                               const std::string& result,
+                               fastotv::protocol::response_t* resp);
 common::Error ActivateResponseFail(fastotv::protocol::sequance_id_t id,
                                    const std::string& error_text,
                                    fastotv::protocol::response_t* resp);
+
+common::Error PrepareServiceResponceSuccess(fastotv::protocol::sequance_id_t id,
+                                            const service::StateInfo& state,
+                                            fastotv::protocol::response_t* resp);
+common::Error SyncServiceResponceSuccess(fastotv::protocol::sequance_id_t id, fastotv::protocol::response_t* resp);
+common::Error GetLogServiceResponseSuccess(fastotv::protocol::sequance_id_t id, fastotv::protocol::response_t* resp);
 
 }  // namespace server
 }  // namespace fastocloud
