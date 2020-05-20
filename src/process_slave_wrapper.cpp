@@ -40,6 +40,7 @@
 #include "daemon/commands_info/state_info.h"
 #include "daemon/commands_info/sync_info.h"
 #include "daemon/server.h"
+#include "https_client.h"
 
 #define PROGRAMME_TAG "programme"
 #define CHANNEL_ATTR "channel"
@@ -78,6 +79,42 @@ bool FindOrCreateFileStream(const std::map<std::string, std::ofstream*>& origin,
   *file << "<tv generator-info-name=\"dvb-epg-gen\">\n";
   *out_file = file;
   return false;
+}
+
+void ParseTagTV(const tinyxml2::XMLElement* tag_tv,
+                const common::file_system::ascii_directory_string_path& out_epg_folder) {
+  std::map<std::string, std::ofstream*> all_programms;
+  const tinyxml2::XMLElement* tag_programme = tag_tv->FirstChildElement(PROGRAMME_TAG);
+  while (tag_programme) {
+    const char* cid = tag_programme->Attribute(CHANNEL_ATTR);
+    if (!cid) {
+      tag_programme = tag_programme->NextSiblingElement(PROGRAMME_TAG);
+      continue;
+    }
+
+    std::ofstream* file = nullptr;
+    bool find_file = FindOrCreateFileStream(all_programms, cid, out_epg_folder, &file);
+    if (!find_file) {
+      if (!file) {
+        WARNING_LOG() << "Can't open file create file for: " << cid;
+        tag_programme = tag_programme->NextSiblingElement(PROGRAMME_TAG);
+        continue;
+      }
+      all_programms[cid] = file;
+    }
+
+    tinyxml2::XMLPrinter printer;
+    tag_programme->Accept(&printer);
+    *file << printer.CStr();
+    tag_programme = tag_programme->NextSiblingElement(PROGRAMME_TAG);
+  }
+
+  for (auto it = all_programms.begin(); it != all_programms.end(); ++it) {
+    *(it->second) << "</tv>\n";
+    it->second->close();
+    delete it->second;
+  }
+  INFO_LOG() << "Epg file processing finished, programms count: " << all_programms.size();
 }
 
 }  // namespace
@@ -266,40 +303,8 @@ void ProcessSlaveWrapper::HandleEpgFile(const common::file_system::ascii_file_st
     WARNING_LOG() << "Can't find tv tag, file: " << path_str;
     return;
   }
-
-  std::map<std::string, std::ofstream*> all_programms;
   common::file_system::ascii_directory_string_path out_epg_folder(config_.epg_out_path);
-  const tinyxml2::XMLElement* tag_programme = tag_tv->FirstChildElement(PROGRAMME_TAG);
-  while (tag_programme) {
-    const char* cid = tag_programme->Attribute(CHANNEL_ATTR);
-    if (!cid) {
-      tag_programme = tag_programme->NextSiblingElement(PROGRAMME_TAG);
-      continue;
-    }
-
-    std::ofstream* file = nullptr;
-    bool find_file = FindOrCreateFileStream(all_programms, cid, out_epg_folder, &file);
-    if (!find_file) {
-      if (!file) {
-        WARNING_LOG() << "Can't open file create file for: " << cid;
-        tag_programme = tag_programme->NextSiblingElement(PROGRAMME_TAG);
-        continue;
-      }
-      all_programms[cid] = file;
-    }
-
-    tinyxml2::XMLPrinter printer;
-    tag_programme->Accept(&printer);
-    *file << printer.CStr();
-    tag_programme = tag_programme->NextSiblingElement(PROGRAMME_TAG);
-  }
-
-  for (auto it = all_programms.begin(); it != all_programms.end(); ++it) {
-    *(it->second) << "</tv>\n";
-    it->second->close();
-    delete it->second;
-  }
-  INFO_LOG() << "Epg file processing finished, programms count: " << all_programms.size();
+  ParseTagTV(tag_tv, out_epg_folder);
 }
 
 void ProcessSlaveWrapper::StopImpl() {
@@ -542,7 +547,7 @@ common::ErrnoError ProcessSlaveWrapper::HandleRequestRefreshUrl(ProtocoledDaemon
     }
 
     std::string result;
-    common::Error err = ExecDownloadUrl(ref_info.GetUrl().spec(), ref_info.GetExtension());
+    common::Error err = ExecDownloadUrl(ref_info.GetUrl());
     if (err) {
       const std::string err_str = err->GetDescription();
       ignore_result(dclient->RefreshUrlFail(req->id, err));
@@ -760,25 +765,70 @@ std::string ProcessSlaveWrapper::MakeServiceStats(common::time64_t expiration_ti
   return node_stats;
 }
 
-common::Error ProcessSlaveWrapper::ExecDownloadUrl(const std::string& url, const std::string& extension) const {
-  if (url.empty() || extension.empty()) {
+common::Error ProcessSlaveWrapper::ExecDownloadUrl(const common::uri::GURL& url) const {
+  if (!url.is_valid()) {
     return common::make_error_inval();
   }
 
-  const std::string cmd_line =
-      common::MemSPrintf("python3 download_url.py %s %s %s", url, extension, config_.epg_in_path);
-  FILE* fp = popen(cmd_line.c_str(), "r");
-  if (!fp) {
-    return common::make_error("Failed to process request");
+  common::net::HostAndPort real(url.host(), url.EffectiveIntPort());
+  std::unique_ptr<common::net::IHttpClient> cl;
+  if (url.SchemeIs("http")) {
+    cl.reset(new common::net::HttpClient(real));
+  } else {
+    cl.reset(new server::HttpsClient(real));
+  }
+  common::ErrnoError cerr = cl->Connect();
+  if (cerr) {
+    return common::make_error_from_errno(cerr);
   }
 
-  char line[1024] = {0};
-  std::string lresult;
-  while (fgets(line, sizeof(line) - 1, fp)) {
-    lresult += line;
+  common::Error err = cl->Get(url.PathForRequest());
+  if (err) {
+    ignore_result(cl->Disconnect());
+    return err;
   }
-  pclose(fp);
-  return common::Error();
+
+  common::http::HttpResponse resp;
+  err = cl->ReadResponse(&resp);
+  ignore_result(cl->Disconnect());
+  if (err) {
+    return err;
+  }
+
+  common::http::header_t cont;
+  if (!resp.FindHeaderByKey("Content-type", false, &cont)) {
+    return common::make_error("Unknown link content");
+  }
+
+  size_t delem = cont.value.find_first_of(';');
+  if (delem != std::string::npos) {
+    cont.value = cont.value.substr(0, delem);
+  }
+
+  const char* ext = common::http::MimeTypes::GetExtension(cont.value.c_str());
+  if (ext) {
+    if (strcmp(ext, "xml") == 0 || strcmp(ext, "*xml") == 0) {
+      const std::string body = resp.GetBody();
+      tinyxml2::XMLDocument doc;
+      tinyxml2::XMLError xerr = doc.Parse(body.c_str(), body.length());
+      if (xerr != tinyxml2::XML_SUCCESS) {
+        WARNING_LOG() << "Invalid epg body url: " << url.spec() << ", error code: " << xerr;
+        return common::make_error_inval();
+      }
+
+      const tinyxml2::XMLElement* tag_tv = doc.FirstChildElement(TV_TAG);
+      if (!tag_tv) {
+        WARNING_LOG() << "Can't find tv tag, url: " << url.spec();
+        return common::make_error_inval();
+      }
+
+      common::file_system::ascii_directory_string_path out_epg_folder(config_.epg_out_path);
+      ParseTagTV(tag_tv, out_epg_folder);
+      return common::Error();
+    }
+  }
+
+  return common::make_error(common::MemSPrintf("Not handled content type: %s", cont.value));
 }
 
 }  // namespace server

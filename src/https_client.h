@@ -14,36 +14,26 @@
 
 #pragma once
 
-#include <string>
-#include <vector>
-
-#include <common/serializer/json_serializer.h>
-#include <common/uri/gurl.h>
+#include <common/net/http_client.h>
 
 namespace fastocloud {
 namespace server {
-namespace service {
 
-class RefreshUrlInfo : public common::serializer::JsonSerializer<RefreshUrlInfo> {
+class HttpsClient : public common::net::IHttpClient {
  public:
-  typedef JsonSerializer<RefreshUrlInfo> base_class;
-  typedef common::uri::GURL url_t;
+  typedef common::net::IHttpClient base_class;
+  explicit HttpsClient(const common::net::HostAndPort& host);
 
-  RefreshUrlInfo();
-  RefreshUrlInfo(const url_t& url);
+  common::ErrnoError Connect(struct timeval* tv = nullptr) override;
 
-  bool IsValid() const;
+  bool IsConnected() const override;
 
-  url_t GetUrl() const;
+  common::ErrnoError Disconnect() override;
 
- protected:
-  common::Error DoDeSerialize(json_object* serialized) override;
-  common::Error SerializeFields(json_object* out) const override;
+  common::net::HostAndPort GetHost() const override;
 
- private:
-  url_t url_;
+  common::ErrnoError SendFile(descriptor_t file_fd, size_t file_size) override;
 };
 
-}  // namespace service
 }  // namespace server
 }  // namespace fastocloud

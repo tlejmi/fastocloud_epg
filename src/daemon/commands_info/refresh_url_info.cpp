@@ -15,27 +15,21 @@
 #include "daemon/commands_info/refresh_url_info.h"
 
 #define URL_FIELD "url"
-#define EXTENSION_FIELD "extension"
 
 namespace fastocloud {
 namespace server {
 namespace service {
 
-RefreshUrlInfo::RefreshUrlInfo() : base_class(), url_(), extension_() {}
+RefreshUrlInfo::RefreshUrlInfo() : base_class(), url_() {}
 
-RefreshUrlInfo::RefreshUrlInfo(const url_t& url, const std::string& extension)
-    : base_class(), url_(url), extension_(extension) {}
+RefreshUrlInfo::RefreshUrlInfo(const url_t& url) : base_class(), url_(url) {}
 
 bool RefreshUrlInfo::IsValid() const {
-  return url_.is_valid() && !extension_.empty();
+  return url_.is_valid();
 }
 
 RefreshUrlInfo::url_t RefreshUrlInfo::GetUrl() const {
   return url_;
-}
-
-std::string RefreshUrlInfo::GetExtension() const {
-  return extension_;
 }
 
 common::Error RefreshUrlInfo::SerializeFields(json_object* out) const {
@@ -45,7 +39,6 @@ common::Error RefreshUrlInfo::SerializeFields(json_object* out) const {
 
   const std::string path_str = url_.spec();
   json_object_object_add(out, URL_FIELD, json_object_new_string(path_str.c_str()));
-  json_object_object_add(out, EXTENSION_FIELD, json_object_new_string(extension_.c_str()));
   return common::Error();
 }
 
@@ -57,13 +50,6 @@ common::Error RefreshUrlInfo::DoDeSerialize(json_object* serialized) {
     return common::make_error_inval();
   }
   inf.url_ = url_t(json_object_get_string(jurl));
-
-  json_object* jextension = nullptr;
-  json_bool jextension_exists = json_object_object_get_ex(serialized, EXTENSION_FIELD, &jextension);
-  if (!jextension_exists) {
-    return common::make_error_inval();
-  }
-  inf.extension_ = json_object_get_string(jextension);
 
   *this = inf;
   return common::Error();

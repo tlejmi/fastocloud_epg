@@ -18,6 +18,7 @@
 
 #include <common/libev/inotify/inotify_client_observer.h>
 #include <common/libev/io_loop_observer.h>
+#include <common/uri/gurl.h>
 
 #include <fastotv/protocol/protocol.h>
 #include <fastotv/protocol/types.h>
@@ -98,7 +99,7 @@ class ProcessSlaveWrapper : public common::libev::IoLoopObserver,
   void CheckLicenseExpired();
   std::string MakeServiceStats(common::time64_t expiration_time) const;
 
-  common::Error ExecDownloadUrl(const std::string& url, const std::string& extension) const;
+  common::Error ExecDownloadUrl(const common::uri::GURL& url) const;
 
   const Config config_;
 
