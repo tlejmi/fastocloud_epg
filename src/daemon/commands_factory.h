@@ -55,6 +55,11 @@ common::Error ActivateResponseFail(fastotv::protocol::sequance_id_t id,
                                    const std::string& error_text,
                                    fastotv::protocol::response_t* resp);
 
+common::Error RefreshUrlResponse(fastotv::protocol::sequance_id_t id, fastotv::protocol::response_t* resp);
+common::Error RefreshUrlResponseFail(fastotv::protocol::sequance_id_t id,
+                                     const std::string& error_text,
+                                     fastotv::protocol::response_t* resp);
+
 common::Error PrepareServiceResponceSuccess(fastotv::protocol::sequance_id_t id,
                                             const service::StateInfo& state,
                                             fastotv::protocol::response_t* resp);

@@ -90,11 +90,15 @@ class ProcessSlaveWrapper : public common::libev::IoLoopObserver,
                                                     const fastotv::protocol::request_t* req) WARN_UNUSED_RESULT;
   common::ErrnoError HandleRequestClientGetLogService(ProtocoledDaemonClient* dclient,
                                                       const fastotv::protocol::request_t* req) WARN_UNUSED_RESULT;
+  common::ErrnoError HandleRequestRefreshUrl(ProtocoledDaemonClient* dclient,
+                                             const fastotv::protocol::request_t* req) WARN_UNUSED_RESULT;
   common::ErrnoError HandleResponcePingService(ProtocoledDaemonClient* dclient,
                                                const fastotv::protocol::response_t* resp) WARN_UNUSED_RESULT;
 
   void CheckLicenseExpired();
   std::string MakeServiceStats(common::time64_t expiration_time) const;
+
+  common::Error ExecDownloadUrl(const std::string& url, const std::string& extension) const;
 
   const Config config_;
 

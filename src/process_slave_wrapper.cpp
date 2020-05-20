@@ -35,6 +35,7 @@
 #include "daemon/commands_info/details/shots.h"
 #include "daemon/commands_info/get_log_info.h"
 #include "daemon/commands_info/prepare_info.h"
+#include "daemon/commands_info/refresh_url_info.h"
 #include "daemon/commands_info/server_info.h"
 #include "daemon/commands_info/state_info.h"
 #include "daemon/commands_info/sync_info.h"
@@ -105,8 +106,8 @@ ProcessSlaveWrapper::ProcessSlaveWrapper(const Config& config)
 
   epg_watched_dir_ = new common::libev::inotify::IoInotifyClient(loop_, this);
   const common::file_system::ascii_directory_string_path epg_watched_dir(config.epg_in_path);
-  epg_watched_dir_->WatchDirectory(epg_watched_dir,
-                                   common::libev::inotify::EV_IN_CREATE | common::libev::inotify::EV_IN_CLOSE_WRITE);
+  ignore_result(epg_watched_dir_->WatchDirectory(
+      epg_watched_dir, common::libev::inotify::EV_IN_CREATE | common::libev::inotify::EV_IN_CLOSE_WRITE));
 }
 
 common::ErrnoError ProcessSlaveWrapper::SendStopDaemonRequest(const Config& config) {
@@ -521,6 +522,38 @@ common::ErrnoError ProcessSlaveWrapper::HandleRequestClientGetLogService(Protoco
   return common::make_errno_error_inval();
 }
 
+common::ErrnoError ProcessSlaveWrapper::HandleRequestRefreshUrl(ProtocoledDaemonClient* dclient,
+                                                                const fastotv::protocol::request_t* req) {
+  CHECK(loop_->IsLoopThread());
+  if (req->params) {
+    const char* params_ptr = req->params->c_str();
+    json_object* jref = json_tokener_parse(params_ptr);
+    if (!jref) {
+      return common::make_errno_error_inval();
+    }
+
+    service::RefreshUrlInfo ref_info;
+    common::Error err_des = ref_info.DeSerialize(jref);
+    json_object_put(jref);
+    if (err_des) {
+      const std::string err_str = err_des->GetDescription();
+      ignore_result(dclient->RefreshUrlFail(req->id, err_des));
+      return common::make_errno_error(err_str, EAGAIN);
+    }
+
+    std::string result;
+    common::Error err = ExecDownloadUrl(ref_info.GetUrl().spec(), ref_info.GetExtension());
+    if (err) {
+      const std::string err_str = err->GetDescription();
+      ignore_result(dclient->RefreshUrlFail(req->id, err));
+      return common::make_errno_error(err_str, EAGAIN);
+    }
+    return dclient->RefreshUrlSuccess(req->id);
+  }
+
+  return common::make_errno_error_inval();
+}
+
 common::ErrnoError ProcessSlaveWrapper::HandleRequestClientActivate(ProtocoledDaemonClient* dclient,
                                                                     const fastotv::protocol::request_t* req) {
   CHECK(loop_->IsLoopThread());
@@ -626,6 +659,8 @@ common::ErrnoError ProcessSlaveWrapper::HandleRequestServiceCommand(ProtocoledDa
     return HandleRequestClientSyncService(dclient, req);
   } else if (req->method == DAEMON_GET_LOG_SERVICE) {
     return HandleRequestClientGetLogService(dclient, req);
+  } else if (req->method == DAEMON_REFRESH_URL) {
+    return HandleRequestRefreshUrl(dclient, req);
   }
 
   WARNING_LOG() << "Received unknown method: " << req->method;
@@ -723,6 +758,27 @@ std::string ProcessSlaveWrapper::MakeServiceStats(common::time64_t expiration_ti
     }
   }
   return node_stats;
+}
+
+common::Error ProcessSlaveWrapper::ExecDownloadUrl(const std::string& url, const std::string& extension) const {
+  if (url.empty() || extension.empty()) {
+    return common::make_error_inval();
+  }
+
+  const std::string cmd_line =
+      common::MemSPrintf("python3 download_url.py %s %s %s", url, extension, config_.epg_in_path);
+  FILE* fp = popen(cmd_line.c_str(), "r");
+  if (!fp) {
+    return common::make_error("Failed to process request");
+  }
+
+  char line[1024] = {0};
+  std::string lresult;
+  while (fgets(line, sizeof(line) - 1, fp)) {
+    lresult += line;
+  }
+  pclose(fp);
+  return common::Error();
 }
 
 }  // namespace server
