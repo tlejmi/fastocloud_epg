@@ -30,7 +30,7 @@ class Debian(OperationSystem):
         return ['git', 'gcc', 'g++', 'make', 'ninja-build', 'cmake', 'python3-pip']
 
     def get_build_exec(self) -> list:
-        return ['autoconf', 'automake', 'libtool', 'pkg-config', 'libudev-dev', 'libz-dev']
+        return ['autoconf', 'automake', 'libtool', 'pkg-config', 'libudev-dev', 'libssl-dev', 'libz-dev']
 
 
 class RedHat(OperationSystem):
@@ -38,7 +38,7 @@ class RedHat(OperationSystem):
         return ['git', 'gcc', 'gcc-c++', 'make', 'ninja-build', 'cmake', 'python3-pip']
 
     def get_build_exec(self) -> list:
-        return ['autoconf', 'automake', 'libtool', 'pkgconfig', 'libudev-devel', 'libz-devel']
+        return ['autoconf', 'automake', 'libtool', 'pkgconfig', 'libudev-devel', 'openssl-devel', 'libz-devel']
 
 
 class Arch(OperationSystem):
@@ -46,7 +46,7 @@ class Arch(OperationSystem):
         return ['git', 'gcc', 'make', 'ninja', 'cmake', 'python3-pip']
 
     def get_build_exec(self) -> list:
-        return ['autoconf', 'automake', 'libtool', 'pkgconfig', 'udev', 'libz']
+        return ['autoconf', 'automake', 'libtool', 'pkgconfig', 'udev', 'openssl', 'libz']
 
 
 class FreeBSD(OperationSystem):
@@ -54,7 +54,7 @@ class FreeBSD(OperationSystem):
         return ['git', 'yasm', 'nasm', 'gcc', 'make', 'ninja', 'cmake', 'python3-pip']
 
     def get_build_exec(self) -> list:
-        return ['autoconf', 'automake', 'libtool', 'pkgconfig', 'libudev-devd', 'libz']
+        return ['autoconf', 'automake', 'libtool', 'pkgconfig', 'libudev-devd', 'openssl', 'libz']
 
 
 class Windows64(OperationSystem):
