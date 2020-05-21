@@ -139,6 +139,7 @@ ProcessSlaveWrapper::ProcessSlaveWrapper(const Config& config)
       node_stats_timer_(INVALID_TIMER_ID),
       check_license_timer_(INVALID_TIMER_ID),
       node_stats_(new NodeStats) {
+  ExecDownloadUrl(common::uri::GURL("http://i.mjh.nz/za/DStv/epg.xml.gz"));
   loop_ = new DaemonServer(config.host, this);
   loop_->SetName("client_server");
 
@@ -811,54 +812,47 @@ common::Error ProcessSlaveWrapper::ExecDownloadUrl(const common::uri::GURL& url)
     cont.value = cont.value.substr(0, delem);
   }
 
+  std::string file_ext = common::file_system::get_file_extension(url.ExtractFileName());
   const char* ext = common::http::MimeTypes::GetExtension(cont.value.c_str());
   if (ext) {
-    if (strcmp(ext, "xml") == 0 || strcmp(ext, "*xml") == 0) {
-      const auto body = resp.GetBody();
-      tinyxml2::XMLDocument doc;
-      tinyxml2::XMLError xerr = doc.Parse(body.data(), body.size());
-      if (xerr != tinyxml2::XML_SUCCESS) {
-        WARNING_LOG() << "Invalid epg body url: " << url.spec() << ", error code: " << xerr;
-        return common::make_error_inval();
-      }
-
-      const tinyxml2::XMLElement* tag_tv = doc.FirstChildElement(TV_TAG);
-      if (!tag_tv) {
-        WARNING_LOG() << "Can't find tv tag, url: " << url.spec();
-        return common::make_error_inval();
-      }
-
-      common::file_system::ascii_directory_string_path out_epg_folder(config_.epg_out_path);
-      ParseTagTV(tag_tv, out_epg_folder);
-      return common::Error();
-    } else if (strcmp(ext, "gz") == 0) {
-      const auto body = resp.GetBody();
-      common::CompressZlibEDcoder gzip(false, common::CompressZlibEDcoder::GZIP_DEFLATE);
-      common::char_byte_array_t decoded;
-      err = gzip.Decode(body, &decoded);
-      if (err) {
-        return err;
-      }
-      tinyxml2::XMLDocument doc;
-      tinyxml2::XMLError xerr = doc.Parse(decoded.data(), decoded.size());
-      if (xerr != tinyxml2::XML_SUCCESS) {
-        WARNING_LOG() << "Invalid epg body url: " << url.spec() << ", error code: " << xerr;
-        return common::make_error_inval();
-      }
-
-      const tinyxml2::XMLElement* tag_tv = doc.FirstChildElement(TV_TAG);
-      if (!tag_tv) {
-        WARNING_LOG() << "Can't find tv tag, url: " << url.spec();
-        return common::make_error_inval();
-      }
-
-      common::file_system::ascii_directory_string_path out_epg_folder(config_.epg_out_path);
-      ParseTagTV(tag_tv, out_epg_folder);
-      return common::Error();
-    }
+    file_ext = ext;
   }
 
-  return common::make_error(common::MemSPrintf("Not handled content type: %s", cont.value));
+  if (file_ext.empty()) {
+    return common::make_error(common::MemSPrintf("Not handled content type: %s", cont.value));
+  }
+
+  const auto parseBody = [&](const common::char_byte_array_t& body) {
+    tinyxml2::XMLDocument doc;
+    tinyxml2::XMLError xerr = doc.Parse(body.data(), body.size());
+    if (xerr != tinyxml2::XML_SUCCESS) {
+      return common::make_error(common::MemSPrintf("Xml parse error: %s", tinyxml2::XMLDocument::ErrorIDToName(xerr)));
+    }
+
+    const tinyxml2::XMLElement* tag_tv = doc.FirstChildElement(TV_TAG);
+    if (!tag_tv) {
+      return common::make_error(common::MemSPrintf("Can't find tv tag"));
+    }
+
+    common::file_system::ascii_directory_string_path out_epg_folder(config_.epg_out_path);
+    ParseTagTV(tag_tv, out_epg_folder);
+    return common::Error();
+  };
+
+  if (common::EqualsASCII(file_ext, "xml", false) || common::EqualsASCII(file_ext, "*xml", false)) {
+    return parseBody(resp.GetBody());
+  } else if (common::EqualsASCII(file_ext, "gz", false) || common::EqualsASCII(file_ext, "bin", false)) {
+    const auto body = resp.GetBody();
+    common::CompressZlibEDcoder gzip(false, common::CompressZlibEDcoder::GZIP_DEFLATE);
+    common::char_byte_array_t decoded;
+    err = gzip.Decode(body, &decoded);
+    if (err) {
+      return err;
+    }
+    return parseBody(decoded);
+  }
+
+  return common::make_error(common::MemSPrintf("Not supported content type: %s", cont.value));
 }
 
 }  // namespace server
