@@ -139,7 +139,6 @@ ProcessSlaveWrapper::ProcessSlaveWrapper(const Config& config)
       node_stats_timer_(INVALID_TIMER_ID),
       check_license_timer_(INVALID_TIMER_ID),
       node_stats_(new NodeStats) {
-  ExecDownloadUrl(common::uri::GURL("http://i.mjh.nz/za/DStv/epg.xml.gz"));
   loop_ = new DaemonServer(config.host, this);
   loop_->SetName("client_server");
 
