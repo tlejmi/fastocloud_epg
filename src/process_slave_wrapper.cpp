@@ -139,7 +139,6 @@ ProcessSlaveWrapper::ProcessSlaveWrapper(const Config& config)
       node_stats_timer_(INVALID_TIMER_ID),
       check_license_timer_(INVALID_TIMER_ID),
       node_stats_(new NodeStats) {
-  ExecDownloadUrl(common::uri::GURL("http://epg.streamstv.me/epg/guide-canada.xml.gz"));
   loop_ = new DaemonServer(config.host, this);
   loop_->SetName("client_server");
 
@@ -815,9 +814,9 @@ common::Error ProcessSlaveWrapper::ExecDownloadUrl(const common::uri::GURL& url)
   const char* ext = common::http::MimeTypes::GetExtension(cont.value.c_str());
   if (ext) {
     if (strcmp(ext, "xml") == 0 || strcmp(ext, "*xml") == 0) {
-      const std::string body = resp.GetBody();
+      const auto body = resp.GetBody();
       tinyxml2::XMLDocument doc;
-      tinyxml2::XMLError xerr = doc.Parse(body.c_str(), body.length());
+      tinyxml2::XMLError xerr = doc.Parse(body.data(), body.size());
       if (xerr != tinyxml2::XML_SUCCESS) {
         WARNING_LOG() << "Invalid epg body url: " << url.spec() << ", error code: " << xerr;
         return common::make_error_inval();
@@ -833,10 +832,10 @@ common::Error ProcessSlaveWrapper::ExecDownloadUrl(const common::uri::GURL& url)
       ParseTagTV(tag_tv, out_epg_folder);
       return common::Error();
     } else if (strcmp(ext, "gz") == 0) {
-      const std::string body = resp.GetBody();
+      const auto body = resp.GetBody();
       common::CompressZlibEDcoder gzip(false, common::CompressZlibEDcoder::GZIP_DEFLATE);
       common::char_byte_array_t decoded;
-      err = gzip.Decode(common::StringPiece(body.c_str(), body.size()), &decoded);
+      err = gzip.Decode(body, &decoded);
       if (err) {
         return err;
       }
