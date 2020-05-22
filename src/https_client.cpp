@@ -111,6 +111,10 @@ class SocketTls : public common::net::ISocketFd {
       return common::make_errno_error(str, EINTR);
     }
 
+    if (len == 0) {
+      return common::make_errno_error(ECONNRESET);
+    }
+
     *nread_out = len;
     return common::ErrnoError();
   }

@@ -49,6 +49,40 @@
 
 namespace {
 
+common::Error GetResponse(const common::uri::GURL& url, common::http::HttpResponse* out) {
+  if (!url.is_valid() || !out) {
+    return common::make_error_inval();
+  }
+
+  common::net::HostAndPort real(url.host(), url.EffectiveIntPort());
+  std::unique_ptr<common::net::IHttpClient> cl;
+  if (url.SchemeIs("http")) {
+    cl.reset(new common::net::HttpClient(real));
+  } else {
+    cl.reset(new fastocloud::server::HttpsClient(real));
+  }
+  common::ErrnoError cerr = cl->Connect();
+  if (cerr) {
+    return common::make_error_from_errno(cerr);
+  }
+
+  common::Error err = cl->Get(url.PathForRequest());
+  if (err) {
+    ignore_result(cl->Disconnect());
+    return err;
+  }
+
+  common::http::HttpResponse resp;
+  err = cl->ReadResponse(&resp);
+  ignore_result(cl->Disconnect());
+  if (err) {
+    return err;
+  }
+
+  *out = resp;
+  return common::Error();
+}
+
 bool FindOrCreateFileStream(const std::map<std::string, std::ofstream*>& origin,
                             const std::string& channel,
                             const common::file_system::ascii_directory_string_path& directory,
@@ -767,38 +801,28 @@ std::string ProcessSlaveWrapper::MakeServiceStats(common::time64_t expiration_ti
 }
 
 common::Error ProcessSlaveWrapper::ExecDownloadUrl(const common::uri::GURL& url) const {
-  if (!url.is_valid()) {
-    return common::make_error_inval();
+  common::uri::GURL copy = url;
+  size_t repeat_count = 5;
+repeat:
+  if (repeat_count == 0) {
+    return common::make_error("A lot of redirects");
   }
-
-  common::net::HostAndPort real(url.host(), url.EffectiveIntPort());
-  std::unique_ptr<common::net::IHttpClient> cl;
-  if (url.SchemeIs("http")) {
-    cl.reset(new common::net::HttpClient(real));
-  } else {
-    cl.reset(new server::HttpsClient(real));
-  }
-  common::ErrnoError cerr = cl->Connect();
-  if (cerr) {
-    return common::make_error_from_errno(cerr);
-  }
-
-  common::Error err = cl->Get(url.PathForRequest());
-  if (err) {
-    ignore_result(cl->Disconnect());
-    return err;
-  }
-
   common::http::HttpResponse resp;
-  err = cl->ReadResponse(&resp);
-  ignore_result(cl->Disconnect());
+  common::Error err = GetResponse(copy, &resp);
   if (err) {
     return err;
   }
 
   const auto status = resp.GetStatus();
   if (status != common::http::HS_OK) {
-    return common::make_error(common::MemSPrintf("Wrong http response code: %d", status));
+    common::http::header_t redirect;
+    if (status == common::http::HS_FOUND && resp.FindHeaderByKey("Location", false, &redirect)) {
+      copy = common::uri::GURL(redirect.value);
+      repeat_count--;
+      goto repeat;
+    } else {
+      return common::make_error(common::MemSPrintf("Wrong http response code: %d", status));
+    }
   }
 
   common::http::header_t cont;
