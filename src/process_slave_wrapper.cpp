@@ -581,14 +581,38 @@ common::ErrnoError ProcessSlaveWrapper::HandleRequestRefreshUrl(ProtocoledDaemon
       return common::make_errno_error(err_str, EAGAIN);
     }
 
-    std::string result;
-    common::Error err = ExecDownloadUrl(ref_info.GetUrl());
+    const common::uri::GURL url = ref_info.GetUrl();
+    const fastotv::protocol::request_t copy_req = *req;
+#if 0
+    std::thread th([this, url, copy_req, dclient]() {
+      common::Error err = ExecDownloadUrl(url);
+      auto func = [this, copy_req, dclient, err]() {
+        auto clients = loop_->GetClients();
+        for (auto client : clients) {
+          if (client == dclient) {
+            if (err) {
+              const std::string err_str = err->GetDescription();
+              ignore_result(dclient->RefreshUrlFail(copy_req.id, err));
+              return common::make_errno_error(err_str, EAGAIN);
+            }
+            return dclient->RefreshUrlSuccess(copy_req.id);
+          }
+        }
+        return common::make_errno_error_inval();
+      };
+      loop_->ExecInLoopThread(func);
+    });
+    th.detach();
+    return common::ErrnoError();
+#else
+    common::Error err = ExecDownloadUrl(url);
     if (err) {
       const std::string err_str = err->GetDescription();
-      ignore_result(dclient->RefreshUrlFail(req->id, err));
+      ignore_result(dclient->RefreshUrlFail(copy_req.id, err));
       return common::make_errno_error(err_str, EAGAIN);
     }
-    return dclient->RefreshUrlSuccess(req->id);
+    return dclient->RefreshUrlSuccess(copy_req.id);
+#endif
   }
 
   return common::make_errno_error_inval();
