@@ -801,6 +801,8 @@ std::string ProcessSlaveWrapper::MakeServiceStats(common::time64_t expiration_ti
 }
 
 common::Error ProcessSlaveWrapper::ExecDownloadUrl(const common::uri::GURL& url) const {
+  INFO_LOG() << "Epg url refresh request: " << url.spec();
+
   common::uri::GURL copy = url;
   size_t repeat_count = 5;
 repeat:
