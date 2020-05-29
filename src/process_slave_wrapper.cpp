@@ -583,7 +583,7 @@ common::ErrnoError ProcessSlaveWrapper::HandleRequestRefreshUrl(ProtocoledDaemon
 
     const common::uri::GURL url = ref_info.GetUrl();
     const fastotv::protocol::request_t copy_req = *req;
-#if 0
+#if 1
     std::thread th([this, url, copy_req, dclient]() {
       common::Error err = ExecDownloadUrl(url);
       auto func = [this, copy_req, dclient, err]() {
