@@ -22,6 +22,7 @@
 #include <vector>
 
 #include <common/daemon/commands/activate_info.h>
+#include <common/daemon/commands/get_log_info.h>
 #include <common/daemon/commands/stop_info.h>
 #include <common/libev/inotify/inotify_client.h>
 #include <common/license/expire_license.h>
@@ -34,7 +35,6 @@
 #include "daemon/client.h"
 #include "daemon/commands.h"
 #include "daemon/commands_info/details/shots.h"
-#include "daemon/commands_info/get_log_info.h"
 #include "daemon/commands_info/prepare_info.h"
 #include "daemon/commands_info/refresh_url_info.h"
 #include "daemon/commands_info/server_info.h"
@@ -543,17 +543,27 @@ common::ErrnoError ProcessSlaveWrapper::HandleRequestClientGetLogService(Protoco
       return common::make_errno_error_inval();
     }
 
-    service::GetLogInfo get_log_info;
+    common::daemon::commands::GetLogInfo get_log_info;
     common::Error err_des = get_log_info.DeSerialize(jlog);
     json_object_put(jlog);
     if (err_des) {
+      ignore_result(dclient->GetLogServiceFail(req->id, err_des));
       const std::string err_str = err_des->GetDescription();
       return common::make_errno_error(err_str, EAGAIN);
     }
 
     const auto remote_log_path = get_log_info.GetLogPath();
-    if (remote_log_path.SchemeIsHTTPOrHTTPS()) {
-      common::net::PostHttpFile(common::file_system::ascii_file_string_path(config_.log_path), remote_log_path);
+    if (!remote_log_path.SchemeIsHTTPOrHTTPS()) {
+      common::ErrnoError errn = common::make_errno_error("Not supported protocol", EAGAIN);
+      ignore_result(dclient->GetLogServiceFail(req->id, common::make_error_from_errno(errn)));
+      return errn;
+    }
+    common::Error err =
+        common::net::PostHttpFile(common::file_system::ascii_file_string_path(config_.log_path), remote_log_path);
+    if (err) {
+      ignore_result(dclient->GetLogServiceFail(req->id, err));
+      const std::string err_str = err->GetDescription();
+      return common::make_errno_error(err_str, EAGAIN);
     }
 
     return dclient->GetLogServiceSuccess(req->id);

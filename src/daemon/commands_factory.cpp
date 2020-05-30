@@ -187,6 +187,18 @@ common::Error SyncServiceResponceSuccess(fastotv::protocol::sequance_id_t id, fa
   return common::Error();
 }
 
+common::Error GetLogServiceResponseFail(fastotv::protocol::sequance_id_t id,
+                                        const std::string& error_text,
+                                        fastotv::protocol::response_t* resp) {
+  if (!resp) {
+    return common::make_error_inval();
+  }
+
+  *resp = fastotv::protocol::response_t::MakeError(
+      id, common::protocols::json_rpc::JsonRPCError::MakeServerErrorFromText(error_text));
+  return common::Error();
+}
+
 common::Error GetLogServiceResponseSuccess(fastotv::protocol::sequance_id_t id, fastotv::protocol::response_t* resp) {
   if (!resp) {
     return common::make_error_inval();
