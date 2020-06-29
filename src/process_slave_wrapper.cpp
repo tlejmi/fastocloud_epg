@@ -189,7 +189,7 @@ common::ErrnoError ProcessSlaveWrapper::SendStopDaemonRequest(const Config& conf
 
   common::net::HostAndPort host = config.host;
   if (host.GetHost() == PROJECT_NAME_LOWERCASE) {  // docker image
-    host = common::net::HostAndPort::CreateLocalHost(host.GetPort());
+    host = common::net::HostAndPort::CreateLocalHostIPV4(host.GetPort());
   }
 
   common::net::socket_info client_info;

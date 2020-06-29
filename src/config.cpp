@@ -86,7 +86,7 @@ namespace server {
 Config::Config() : host(GetDefaultHost()), log_path(DUMMY_LOG_FILE_PATH), log_level(common::logging::LOG_LEVEL_INFO) {}
 
 common::net::HostAndPort Config::GetDefaultHost() {
-  return common::net::HostAndPort::CreateLocalHost(CLIENT_PORT);
+  return common::net::HostAndPort::CreateLocalHostIPV4(CLIENT_PORT);
 }
 
 bool Config::IsValid() const {
@@ -134,7 +134,7 @@ common::ErrnoError load_config_from_file(const std::string& config_absolute_path
   common::Value* host_field = slave_config_args->Find(SERVICE_HOST_FIELD);
   std::string host_str;
   if (!host_field || !host_field->GetAsBasicString(&host_str) || !common::ConvertFromString(host_str, &lconfig.host)) {
-    lconfig.host = common::net::HostAndPort::CreateLocalHost(CLIENT_PORT);
+    lconfig.host = Config::GetDefaultHost();
   }
 
   common::Value* epg_in_field = slave_config_args->Find(SERVICE_EPG_IN_DIR_FIELD);
