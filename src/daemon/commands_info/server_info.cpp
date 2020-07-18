@@ -14,20 +14,6 @@
 
 #include "daemon/commands_info/server_info.h"
 
-#define STATISTIC_SERVICE_INFO_UPTIME_FIELD "uptime"
-#define STATISTIC_SERVICE_INFO_TIMESTAMP_FIELD "timestamp"
-#define STATISTIC_SERVICE_INFO_CPU_FIELD "cpu"
-#define STATISTIC_SERVICE_INFO_MEMORY_TOTAL_FIELD "memory_total"
-#define STATISTIC_SERVICE_INFO_MEMORY_FREE_FIELD "memory_free"
-
-#define STATISTIC_SERVICE_INFO_HDD_TOTAL_FIELD "hdd_total"
-#define STATISTIC_SERVICE_INFO_HDD_FREE_FIELD "hdd_free"
-
-#define STATISTIC_SERVICE_INFO_LOAD_AVERAGE_FIELD "load_average"
-
-#define STATISTIC_SERVICE_INFO_BANDWIDTH_IN_FIELD "bandwidth_in"
-#define STATISTIC_SERVICE_INFO_BANDWIDTH_OUT_FIELD "bandwidth_out"
-
 #define STATISTIC_SERVICE_INFO_ONLINE_USERS_FIELD "online_users"
 
 #define FULL_SERVICE_INFO_OS_FIELD "os"
@@ -63,63 +49,55 @@ common::Error OnlineUsers::SerializeFields(json_object* out) const {
   return common::Error();
 }
 
-ServerInfo::ServerInfo()
-    : base_class(),
-      cpu_load_(),
-      uptime_(),
-      mem_shot_(),
-      hdd_shot_(),
-      net_bytes_recv_(),
-      net_bytes_send_(),
-      current_ts_(),
-      sys_shot_(),
-      online_users_() {}
+ServerInfo::ServerInfo() : base_class(), online_users_() {}
 
 ServerInfo::ServerInfo(cpu_load_t cpu_load,
-                       const std::string& uptime,
-                       const MemoryShot& mem_shot,
-                       const HddShot& hdd_shot,
+                       gpu_load_t gpu_load,
+                       const std::string& load_average,
+                       size_t ram_bytes_total,
+                       size_t ram_bytes_free,
+                       size_t hdd_bytes_total,
+                       size_t hdd_bytes_free,
                        fastotv::bandwidth_t net_bytes_recv,
                        fastotv::bandwidth_t net_bytes_send,
-                       const SysinfoShot& sys,
+                       time_t uptime,
                        fastotv::timestamp_t timestamp,
                        const OnlineUsers& online_users)
-    : base_class(),
-      cpu_load_(cpu_load),
-      uptime_(uptime),
-      mem_shot_(mem_shot),
-      hdd_shot_(hdd_shot),
-      net_bytes_recv_(net_bytes_recv),
-      net_bytes_send_(net_bytes_send),
-      current_ts_(timestamp),
-      sys_shot_(sys),
+    : base_class(cpu_load,
+                 gpu_load,
+                 load_average,
+                 ram_bytes_total,
+                 ram_bytes_free,
+                 hdd_bytes_total,
+                 hdd_bytes_free,
+                 net_bytes_recv,
+                 net_bytes_send,
+                 uptime,
+                 timestamp),
       online_users_(online_users) {}
 
 common::Error ServerInfo::SerializeFields(json_object* out) const {
-  json_object* obj = nullptr;
-  common::Error err = online_users_.Serialize(&obj);
+  common::Error err = base_class::SerializeFields(out);
   if (err) {
     return err;
   }
 
-  json_object_object_add(out, STATISTIC_SERVICE_INFO_CPU_FIELD, json_object_new_double(cpu_load_));
-  json_object_object_add(out, STATISTIC_SERVICE_INFO_LOAD_AVERAGE_FIELD, json_object_new_string(uptime_.c_str()));
-  json_object_object_add(out, STATISTIC_SERVICE_INFO_MEMORY_TOTAL_FIELD,
-                         json_object_new_int64(mem_shot_.ram_bytes_total));
-  json_object_object_add(out, STATISTIC_SERVICE_INFO_MEMORY_FREE_FIELD,
-                         json_object_new_int64(mem_shot_.ram_bytes_free));
-  json_object_object_add(out, STATISTIC_SERVICE_INFO_HDD_TOTAL_FIELD, json_object_new_int64(hdd_shot_.hdd_bytes_total));
-  json_object_object_add(out, STATISTIC_SERVICE_INFO_HDD_FREE_FIELD, json_object_new_int64(hdd_shot_.hdd_bytes_free));
-  json_object_object_add(out, STATISTIC_SERVICE_INFO_BANDWIDTH_IN_FIELD, json_object_new_int64(net_bytes_recv_));
-  json_object_object_add(out, STATISTIC_SERVICE_INFO_BANDWIDTH_OUT_FIELD, json_object_new_int64(net_bytes_send_));
-  json_object_object_add(out, STATISTIC_SERVICE_INFO_UPTIME_FIELD, json_object_new_int64(sys_shot_.uptime));
-  json_object_object_add(out, STATISTIC_SERVICE_INFO_TIMESTAMP_FIELD, json_object_new_int64(current_ts_));
+  json_object* obj = nullptr;
+  err = online_users_.Serialize(&obj);
+  if (err) {
+    return err;
+  }
+
   json_object_object_add(out, STATISTIC_SERVICE_INFO_ONLINE_USERS_FIELD, obj);
   return common::Error();
 }
 
 common::Error ServerInfo::DoDeSerialize(json_object* serialized) {
   ServerInfo inf;
+  common::Error err = inf.base_class::DoDeSerialize(serialized);
+  if (err) {
+    return err;
+  }
 
   json_object* jonline = nullptr;
   json_bool jonline_exists = json_object_object_get_ex(serialized, STATISTIC_SERVICE_INFO_ONLINE_USERS_FIELD, &jonline);
@@ -130,101 +108,8 @@ common::Error ServerInfo::DoDeSerialize(json_object* serialized) {
     }
   }
 
-  json_object* jcpu_load = nullptr;
-  json_bool jcpu_load_exists = json_object_object_get_ex(serialized, STATISTIC_SERVICE_INFO_CPU_FIELD, &jcpu_load);
-  if (jcpu_load_exists) {
-    inf.cpu_load_ = json_object_get_double(jcpu_load);
-  }
-
-  json_object* juptime = nullptr;
-  json_bool juptime_exists = json_object_object_get_ex(serialized, STATISTIC_SERVICE_INFO_LOAD_AVERAGE_FIELD, &juptime);
-  if (juptime_exists) {
-    inf.uptime_ = json_object_get_string(juptime);
-  }
-
-  json_object* jmemory_total = nullptr;
-  json_bool jmemory_total_exists =
-      json_object_object_get_ex(serialized, STATISTIC_SERVICE_INFO_MEMORY_TOTAL_FIELD, &jmemory_total);
-  if (jmemory_total_exists) {
-    inf.mem_shot_.ram_bytes_total = json_object_get_int64(jmemory_total);
-  }
-
-  json_object* jmemory_avail = nullptr;
-  json_bool jmemory_avail_exists =
-      json_object_object_get_ex(serialized, STATISTIC_SERVICE_INFO_MEMORY_FREE_FIELD, &jmemory_avail);
-  if (jmemory_avail_exists) {
-    inf.mem_shot_.ram_bytes_free = json_object_get_int64(jmemory_avail);
-  }
-
-  json_object* jhdd_total = nullptr;
-  json_bool jhdd_total_exists =
-      json_object_object_get_ex(serialized, STATISTIC_SERVICE_INFO_HDD_TOTAL_FIELD, &jhdd_total);
-  if (jhdd_total_exists) {
-    inf.hdd_shot_.hdd_bytes_total = json_object_get_int64(jhdd_total);
-  }
-
-  json_object* jhdd_free = nullptr;
-  json_bool jhdd_free_exists = json_object_object_get_ex(serialized, STATISTIC_SERVICE_INFO_HDD_FREE_FIELD, &jhdd_free);
-  if (jhdd_free_exists) {
-    inf.hdd_shot_.hdd_bytes_free = json_object_get_int64(jhdd_free);
-  }
-
-  json_object* jnet_bytes_recv = nullptr;
-  json_bool jnet_bytes_recv_exists =
-      json_object_object_get_ex(serialized, STATISTIC_SERVICE_INFO_BANDWIDTH_IN_FIELD, &jnet_bytes_recv);
-  if (jnet_bytes_recv_exists) {
-    inf.net_bytes_recv_ = json_object_get_int64(jnet_bytes_recv);
-  }
-
-  json_object* jnet_bytes_send = nullptr;
-  json_bool jnet_bytes_send_exists =
-      json_object_object_get_ex(serialized, STATISTIC_SERVICE_INFO_BANDWIDTH_OUT_FIELD, &jnet_bytes_send);
-  if (jnet_bytes_send_exists) {
-    inf.net_bytes_send_ = json_object_get_int64(jnet_bytes_send);
-  }
-
-  json_object* jsys_stamp = nullptr;
-  json_bool jsys_stamp_exists = json_object_object_get_ex(serialized, STATISTIC_SERVICE_INFO_UPTIME_FIELD, &jsys_stamp);
-  if (jsys_stamp_exists) {
-    inf.sys_shot_.uptime = json_object_get_int64(jsys_stamp);
-  }
-
-  json_object* jcur_ts = nullptr;
-  json_bool jcur_ts_exists = json_object_object_get_ex(serialized, STATISTIC_SERVICE_INFO_TIMESTAMP_FIELD, &jcur_ts);
-  if (jcur_ts_exists) {
-    inf.current_ts_ = json_object_get_int64(jcur_ts);
-  }
-
   *this = inf;
   return common::Error();
-}
-
-ServerInfo::cpu_load_t ServerInfo::GetCpuLoad() const {
-  return cpu_load_;
-}
-
-std::string ServerInfo::GetUptime() const {
-  return uptime_;
-}
-
-MemoryShot ServerInfo::GetMemShot() const {
-  return mem_shot_;
-}
-
-HddShot ServerInfo::GetHddShot() const {
-  return hdd_shot_;
-}
-
-fastotv::bandwidth_t ServerInfo::GetNetBytesRecv() const {
-  return net_bytes_recv_;
-}
-
-fastotv::bandwidth_t ServerInfo::GetNetBytesSend() const {
-  return net_bytes_send_;
-}
-
-fastotv::timestamp_t ServerInfo::GetTimestamp() const {
-  return current_ts_;
 }
 
 OnlineUsers ServerInfo::GetOnlineUsers() const {
