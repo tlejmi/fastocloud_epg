@@ -815,7 +815,8 @@ std::string ProcessSlaveWrapper::MakeServiceStats(common::time64_t expiration_ti
   service::OnlineUsers online(daemons_client_count);
   service::ServerInfo stat(cpu_load, 0, uptime_str, mem_shot.ram_bytes_total, mem_shot.ram_bytes_free,
                            hdd_shot.hdd_bytes_total, hdd_shot.hdd_bytes_free, bytes_recv / ts_diff,
-                           bytes_send / ts_diff, sshot.uptime, current_time, online);
+                           bytes_send / ts_diff, sshot.uptime, current_time, next_nshot.bytes_recv,
+                           next_nshot.bytes_send, online);
 
   std::string node_stats;
   if (expiration_time != 0) {

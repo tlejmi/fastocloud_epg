@@ -49,6 +49,8 @@ class ServerInfo : public fastotv::commands_info::MachineInfo {
              fastotv::bandwidth_t net_bytes_send,
              time_t uptime,
              fastotv::timestamp_t timestamp,
+             size_t net_total_bytes_recv,
+             size_t net_total_bytes_send,
              const OnlineUsers& online_users);
 
   OnlineUsers GetOnlineUsers() const;
