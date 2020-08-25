@@ -654,6 +654,12 @@ common::ErrnoError ProcessSlaveWrapper::HandleRequestClientActivate(ProtocoledDa
     }
 
     const auto expire_key = activate_info.GetLicense();
+    if (expire_key != config_.license_key) {
+      common::Error err = common::make_error("Config not same activation key");
+      ignore_result(dclient->ActivateFail(req->id, err));
+      return common::make_errno_error(err->GetDescription(), EINVAL);
+    }
+
     common::time64_t tm;
     bool is_valid = common::license::GetExpireTimeFromKey(PROJECT_NAME_LOWERCASE, *expire_key, &tm);
     if (!is_valid) {
