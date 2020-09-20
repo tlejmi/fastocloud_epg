@@ -33,7 +33,7 @@ class ProtocoledDaemonClient;
 class ProcessSlaveWrapper : public common::libev::IoLoopObserver,
                             public common::libev::inotify::IoInotifyClientObserver {
  public:
-  enum { node_stats_send_seconds = 10, ping_timeout_clients_seconds = 60, check_license_timeout_seconds = 300 };
+  enum { ping_timeout_clients_seconds = 60, check_license_timeout_seconds = 300 };
 
   explicit ProcessSlaveWrapper(const Config& config);
   ~ProcessSlaveWrapper() override;

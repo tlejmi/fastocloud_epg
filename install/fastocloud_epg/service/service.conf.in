@@ -3,4 +3,5 @@ log_level=INFO
 host=@STREAMER_SERVICE_HOST@
 epg_in_directory=@STREAMER_SERVICE_EPG_IN_DIRECTORY@
 epg_out_directory=@STREAMER_SERVICE_EPG_OUT_DIRECTORY@
+report_node_stats=10
 license_key=

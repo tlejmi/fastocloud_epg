@@ -17,6 +17,7 @@
 #include <fstream>
 #include <utility>
 
+#include <common/convert2string.h>
 #include <common/license/expire_license.h>
 #include <common/value.h>
 
@@ -26,8 +27,10 @@
 #define SERVICE_EPG_IN_DIR_FIELD "epg_in_directory"
 #define SERVICE_EPG_OUT_DIR_FIELD "epg_out_directory"
 #define SERVICE_LICENSE_KEY_FIELD "license_key"
+#define SERVICE_REPORT_NODE_STATS_FIELD "report_node_stats"
 
 #define DUMMY_LOG_FILE_PATH "/dev/null"
+#define REPORT_NODE_STATS 10
 
 namespace {
 std::pair<std::string, std::string> GetKeyValue(const std::string& line, char separator) {
@@ -71,6 +74,11 @@ common::ErrnoError ReadConfigFile(const std::string& path, common::HashValue** a
       options->Insert(pair.first, common::Value::CreateStringValueFromBasicString(pair.second));
     } else if (pair.first == SERVICE_LICENSE_KEY_FIELD) {
       options->Insert(pair.first, common::Value::CreateStringValueFromBasicString(pair.second));
+    } else if (pair.first == SERVICE_REPORT_NODE_STATS_FIELD) {
+      time_t report;
+      if (common::ConvertFromString(pair.second, &report)) {
+        options->Insert(pair.first, common::Value::CreateTimeValue(report));
+      }
     }
   }
 
@@ -83,7 +91,12 @@ common::ErrnoError ReadConfigFile(const std::string& path, common::HashValue** a
 namespace fastocloud {
 namespace server {
 
-Config::Config() : host(GetDefaultHost()), log_path(DUMMY_LOG_FILE_PATH), log_level(common::logging::LOG_LEVEL_INFO) {}
+Config::Config()
+    : host(GetDefaultHost()),
+      log_path(DUMMY_LOG_FILE_PATH),
+      log_level(common::logging::LOG_LEVEL_INFO),
+      license_key(),
+      report_node(REPORT_NODE_STATS) {}
 
 common::net::HostAndPort Config::GetDefaultHost() {
   return common::net::HostAndPort::CreateLocalHostIPV4(CLIENT_PORT);
@@ -145,6 +158,11 @@ common::ErrnoError load_config_from_file(const std::string& config_absolute_path
   common::Value* epg_out_field = slave_config_args->Find(SERVICE_EPG_OUT_DIR_FIELD);
   if (!epg_out_field || !epg_out_field->GetAsBasicString(&lconfig.epg_out_path)) {
     lconfig.epg_out_path = EPG_OUT_DIRECTORY;
+  }
+
+  common::Value* report_node_stats_field = slave_config_args->Find(SERVICE_REPORT_NODE_STATS_FIELD);
+  if (!report_node_stats_field || !report_node_stats_field->GetAsTime(&lconfig.report_node)) {
+    lconfig.report_node = REPORT_NODE_STATS;
   }
 
   *config = lconfig;

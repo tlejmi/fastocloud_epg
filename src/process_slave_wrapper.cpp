@@ -265,7 +265,7 @@ void ProcessSlaveWrapper::PreLooped(common::libev::IoLoop* server) {
   UNUSED(server);
   ignore_result(loop_->RegisterClient(epg_watched_dir_));
   ping_client_timer_ = server->CreateTimer(ping_timeout_clients_seconds, true);
-  node_stats_timer_ = server->CreateTimer(node_stats_send_seconds, true);
+  node_stats_timer_ = server->CreateTimer(config_.report_node, true);
   check_license_timer_ = server->CreateTimer(check_license_timeout_seconds, true);
 }
 

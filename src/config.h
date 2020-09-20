@@ -24,6 +24,7 @@ namespace fastocloud {
 namespace server {
 
 struct Config {
+  typedef time_t report_node_stats_t;
   typedef common::Optional<common::license::expire_key_t> license_t;
   Config();
 
@@ -37,6 +38,7 @@ struct Config {
   std::string epg_in_path;
   std::string epg_out_path;
   license_t license_key;
+  report_node_stats_t report_node;
 };
 
 common::ErrnoError load_config_from_file(const std::string& config_absolute_path, Config* config) WARN_UNUSED_RESULT;
