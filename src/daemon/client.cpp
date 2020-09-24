@@ -22,7 +22,7 @@ namespace fastocloud {
 namespace server {
 
 ProtocoledDaemonClient::ProtocoledDaemonClient(common::libev::IoLoop* server, const common::net::socket_info& info)
-    : base_class(server, info) {}
+    : base_class(std::make_shared<fastotv::protocol::FastoTVCompressor>(), server, info) {}
 
 common::ErrnoError ProtocoledDaemonClient::StopMe() {
   const common::daemon::commands::StopInfo stop_req;
