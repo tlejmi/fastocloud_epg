@@ -27,8 +27,7 @@ common::Error SyncInfo::SerializeFields(json_object*) const {
 common::Error SyncInfo::DoDeSerialize(json_object* serialized) {
   UNUSED(serialized);
 
-  SyncInfo inf;
-  *this = inf;
+  *this = SyncInfo();
   return common::Error();
 }
 

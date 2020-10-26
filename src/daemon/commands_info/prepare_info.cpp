@@ -29,8 +29,7 @@ common::Error PrepareInfo::SerializeFields(json_object* out) const {
 common::Error PrepareInfo::DoDeSerialize(json_object* serialized) {
   UNUSED(serialized);
 
-  PrepareInfo inf;
-  *this = inf;
+  *this = PrepareInfo();
   return common::Error();
 }
 

@@ -43,15 +43,13 @@ common::Error RefreshUrlInfo::SerializeFields(json_object* out) const {
 }
 
 common::Error RefreshUrlInfo::DoDeSerialize(json_object* serialized) {
-  RefreshUrlInfo inf;
-  json_object* jurl = nullptr;
-  json_bool jurl_exists = json_object_object_get_ex(serialized, URL_FIELD, &jurl);
-  if (!jurl_exists) {
-    return common::make_error_inval();
+  std::string url;
+  common::Error err = GetStringField(serialized, URL_FIELD, &url);
+  if (!err) {
+    return err;
   }
-  inf.url_ = url_t(json_object_get_string(jurl));
 
-  *this = inf;
+  *this = RefreshUrlInfo(url_t(url));
   return common::Error();
 }
 

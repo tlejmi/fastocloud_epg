@@ -28,8 +28,7 @@ common::Error StateInfo::SerializeFields(json_object* deserialized) const {
 common::Error StateInfo::DoDeSerialize(json_object* serialized) {
   UNUSED(serialized);
 
-  StateInfo inf;
-  *this = inf;
+  *this = StateInfo();
   return common::Error();
 }
 
