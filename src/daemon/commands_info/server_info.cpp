@@ -14,6 +14,8 @@
 
 #include "daemon/commands_info/server_info.h"
 
+#include <string>
+
 #define STATISTIC_SERVICE_INFO_ONLINE_USERS_FIELD "online_users"
 
 #define FULL_SERVICE_INFO_OS_FIELD "os"
@@ -103,10 +105,10 @@ common::Error ServerInfo::DoDeSerialize(json_object* serialized) {
     return err;
   }
 
-  json_object* jonline = nullptr;
-  json_bool jonline_exists = json_object_object_get_ex(serialized, STATISTIC_SERVICE_INFO_ONLINE_USERS_FIELD, &jonline);
-  if (jonline_exists) {
-    common::Error err = inf.online_users_.DeSerialize(jonline);
+  json_object* jonline;
+  err = GetObjectField(serialized, STATISTIC_SERVICE_INFO_ONLINE_USERS_FIELD, &jonline);
+  if (!err) {
+    err = inf.online_users_.DeSerialize(jonline);
     if (err) {
       return err;
     }
@@ -144,32 +146,18 @@ common::Error FullServiceInfo::DoDeSerialize(json_object* serialized) {
     return err;
   }
 
-  json_object* jos = nullptr;
-  json_bool jos_exists = json_object_object_get_ex(serialized, FULL_SERVICE_INFO_OS_FIELD, &jos);
-  if (jos_exists) {
-    common::Error err = inf.os_.DeSerialize(jos);
+  json_object* jos;
+  err = GetObjectField(serialized, FULL_SERVICE_INFO_OS_FIELD, &jos);
+  if (!err) {
+    err = inf.os_.DeSerialize(jos);
     if (err) {
       return err;
     }
   }
 
-  json_object* jexp = nullptr;
-  json_bool jexp_exists = json_object_object_get_ex(serialized, FULL_SERVICE_INFO_EXPIRATION_TIME_FIELD, &jexp);
-  if (jexp_exists) {
-    inf.exp_time_ = json_object_get_int64(jexp);
-  }
-
-  json_object* jproj = nullptr;
-  json_bool jproj_exists = json_object_object_get_ex(serialized, FULL_SERVICE_INFO_PROJECT_FIELD, &jproj);
-  if (jproj_exists) {
-    inf.project_ = json_object_get_string(jproj);
-  }
-
-  json_object* jproj_ver = nullptr;
-  json_bool jproj_ver_exists = json_object_object_get_ex(serialized, FULL_SERVICE_INFO_VERSION_FIELD, &jproj_ver);
-  if (jproj_ver_exists) {
-    inf.proj_ver_ = json_object_get_string(jproj_ver);
-  }
+  ignore_result(GetInt64Field(serialized, FULL_SERVICE_INFO_EXPIRATION_TIME_FIELD, &inf.exp_time_));
+  ignore_result(GetStringField(serialized, FULL_SERVICE_INFO_PROJECT_FIELD, &inf.project_));
+  ignore_result(GetStringField(serialized, FULL_SERVICE_INFO_VERSION_FIELD, &inf.proj_ver_));
 
   *this = inf;
   return common::Error();
