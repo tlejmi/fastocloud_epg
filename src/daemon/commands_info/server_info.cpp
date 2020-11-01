@@ -47,7 +47,7 @@ common::Error OnlineUsers::DoDeSerialize(json_object* serialized) {
 }
 
 common::Error OnlineUsers::SerializeFields(json_object* out) const {
-  json_object_object_add(out, ONLINE_USERS_DAEMON_FIELD, json_object_new_int64(daemon_));
+  ignore_result(SetInt64Field(out, ONLINE_USERS_DAEMON_FIELD, daemon_));
   return common::Error();
 }
 
@@ -94,7 +94,7 @@ common::Error ServerInfo::SerializeFields(json_object* out) const {
     return err;
   }
 
-  json_object_object_add(out, STATISTIC_SERVICE_INFO_ONLINE_USERS_FIELD, obj);
+  ignore_result(SetObjectField(out, STATISTIC_SERVICE_INFO_ONLINE_USERS_FIELD, obj));
   return common::Error();
 }
 
@@ -170,10 +170,10 @@ common::Error FullServiceInfo::SerializeFields(json_object* out) const {
     return err;
   }
 
-  json_object_object_add(out, FULL_SERVICE_INFO_EXPIRATION_TIME_FIELD, json_object_new_int64(exp_time_));
-  json_object_object_add(out, FULL_SERVICE_INFO_PROJECT_FIELD, json_object_new_string(project_.c_str()));
-  json_object_object_add(out, FULL_SERVICE_INFO_VERSION_FIELD, json_object_new_string(proj_ver_.c_str()));
-  json_object_object_add(out, FULL_SERVICE_INFO_OS_FIELD, jos);
+  ignore_result(SetInt64Field(out, FULL_SERVICE_INFO_EXPIRATION_TIME_FIELD, exp_time_));
+  ignore_result(SetStringField(out, FULL_SERVICE_INFO_PROJECT_FIELD, project_));
+  ignore_result(SetStringField(out, FULL_SERVICE_INFO_VERSION_FIELD, proj_ver_));
+  ignore_result(SetObjectField(out, FULL_SERVICE_INFO_OS_FIELD, jos));
   return base_class::SerializeFields(out);
 }
 

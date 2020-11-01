@@ -38,7 +38,7 @@ common::Error RefreshUrlInfo::SerializeFields(json_object* out) const {
   }
 
   const std::string path_str = url_.spec();
-  json_object_object_add(out, URL_FIELD, json_object_new_string(path_str.c_str()));
+  ignore_result(SetStringField(out, URL_FIELD, path_str));
   return common::Error();
 }
 
